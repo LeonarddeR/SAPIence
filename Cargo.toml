@@ -1,0 +1,40 @@
+# SAPIence
+# cargo.toml for the SAPIENCE crate
+# Copyright (C) 2023 Leonard de Ruijter <alderuijter@gmail.com>
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Affero General Public License as
+# published by the Free Software Foundation, either version 3 of the
+# License, or (at your option) any later version.
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU Affero General Public License for more details.
+# You should have received a copy of the GNU Affero General Public License
+# along with this program.  If not, see <https:#www.gnu.org/licenses/>.
+
+[package]
+name = "SAPIENCE"
+version = "0.1.0"
+authors = ["Leonard de Ruijter <alderuijter@gmail.com>"]
+readme = "readme.md"
+repository = "https://github.com/leonardder/SAPIence"
+license = "AGPL-3.0-or-later"
+categories = ["os::windows-apis"]
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+tracing = "0.1.37"
+tracing-appender = "0.2.2"
+tracing-subscriber = "0.3.16"
+
+[dependencies.windows]
+version = "0.51.0"
+features = [
+    "implement",
+    "Win32_Foundation",
+    "Win32_System_Com",
+    "Win32_System_Ole",
+]
