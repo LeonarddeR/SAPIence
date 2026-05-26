@@ -7,6 +7,7 @@ pub mod clsid;
 pub mod fragments;
 pub mod marks;
 pub mod nvda;
+pub mod pacing;
 pub mod registry;
 pub mod ssml;
 pub mod tts_engine;
