@@ -2,18 +2,18 @@
 
 use std::{io, path::PathBuf, sync::OnceLock};
 use libloading::Library;
-use tempfile::NamedTempFile;
 use windows::{
     Win32::{
         Foundation::ERROR_SUCCESS,
         System::{
-            Com::IClassFactory,
             Registry::{
-                HKEY, HKEY_LOCAL_MACHINE, KEY_ALL_ACCESS, RegLoadAppKeyW, RegOverridePredefKey,
+                HKEY, HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE,
+                RegCloseKey, RegCreateKeyW, RegDeleteTreeW,
+                RegOverridePredefKey,
             },
         },
     },
-    core::{GUID, HRESULT, Interface, OutRef, Ref, PCWSTR},
+    core::{GUID, HRESULT, PCWSTR},
 };
 
 pub const CLSID_SAPIENCE_VOICE: GUID =
@@ -84,46 +84,52 @@ impl DllHandle {
     }
 }
 
-/// RAII override of HKEY_LOCAL_MACHINE to a private in-memory hive.
+/// RAII override of HKEY_LOCAL_MACHINE to a private subkey under HKCU.
+///
+/// Uses a regular (non-app-key) hive so that KTM transactions inside
+/// `registry::register` work correctly. HKCU is always writable without
+/// elevation and its hive supports transacted registry operations.
 pub struct HklmOverride {
-    _hive: windows_registry::Key,
-    _file: NamedTempFile,
+    raw_key: HKEY,
+    subkey_path: Vec<u16>, // NUL-terminated UTF-16
 }
 
 impl HklmOverride {
     pub fn new() -> io::Result<Self> {
-        let temp = tempfile::Builder::new()
-            .prefix("sapience_test_hive_")
-            .suffix(".dat")
-            .tempfile()?;
-        let path = temp.path().to_owned();
-        // RegLoadAppKeyW requires the file to not exist yet.
-        std::fs::remove_file(&path)?;
-        let path_w: Vec<u16> = path
-            .as_os_str()
-            .to_string_lossy()
+        use std::time::{SystemTime, UNIX_EPOCH};
+        let nanos = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|d| d.subsec_nanos())
+            .unwrap_or(0);
+        let unique = format!(
+            r"Software\SAPIence_Test_{}_{}",
+            std::process::id(),
+            nanos
+        );
+        let path_w: Vec<u16> = unique
             .encode_utf16()
             .chain(std::iter::once(0u16))
             .collect();
-        let mut raw_hive = HKEY(std::ptr::null_mut());
+
+        let mut raw_key = HKEY(std::ptr::null_mut());
         let rc = unsafe {
-            RegLoadAppKeyW(
+            RegCreateKeyW(
+                HKEY_CURRENT_USER,
                 PCWSTR(path_w.as_ptr()),
-                &mut raw_hive,
-                KEY_ALL_ACCESS.0,
-                0,
-                None,
+                &mut raw_key,
             )
         };
         if rc != ERROR_SUCCESS {
             return Err(io::Error::from_raw_os_error(rc.0 as i32));
         }
-        let hive = unsafe { windows_registry::Key::from_raw(raw_hive.0) };
-        let rc2 = unsafe { RegOverridePredefKey(HKEY_LOCAL_MACHINE, Some(raw_hive)) };
+
+        let rc2 = unsafe { RegOverridePredefKey(HKEY_LOCAL_MACHINE, Some(raw_key)) };
         if rc2 != ERROR_SUCCESS {
+            unsafe { let _ = RegCloseKey(raw_key); };
             return Err(io::Error::from_raw_os_error(rc2.0 as i32));
         }
-        Ok(Self { _hive: hive, _file: temp })
+
+        Ok(Self { raw_key, subkey_path: path_w })
     }
 }
 
@@ -131,6 +137,9 @@ impl Drop for HklmOverride {
     fn drop(&mut self) {
         unsafe {
             let _ = RegOverridePredefKey(HKEY_LOCAL_MACHINE, None);
+            let _ = RegCloseKey(self.raw_key);
+            // Delete the temporary subkey tree from HKCU
+            let _ = RegDeleteTreeW(HKEY_CURRENT_USER, PCWSTR(self.subkey_path.as_ptr()));
         }
     }
 }

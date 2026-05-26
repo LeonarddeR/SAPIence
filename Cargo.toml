@@ -46,5 +46,4 @@ zip = { version = "2", default-features = false, features = ["deflate"] }
 
 [dev-dependencies]
 libloading = "0.9"
-tempfile = "3"
 serial_test = "3"
