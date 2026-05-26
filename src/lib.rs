@@ -4,6 +4,7 @@
 
 pub mod class_factory;
 pub mod clsid;
+pub mod fragments;
 pub mod nvda;
 pub mod registry;
 pub mod tts_engine;
