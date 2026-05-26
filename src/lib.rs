@@ -177,3 +177,15 @@ pub extern "system" fn DllUnregisterServer() -> HRESULT {
         }
     }
 }
+
+#[cfg(feature = "test-hooks")]
+#[unsafe(no_mangle)]
+pub extern "Rust" fn sapience_test_set_pid_override(pid: u32) {
+    nvda::test_hooks::set_pid_override(pid);
+}
+
+#[cfg(feature = "test-hooks")]
+#[unsafe(no_mangle)]
+pub extern "Rust" fn sapience_test_clear_pid_override() {
+    nvda::test_hooks::clear_pid_override();
+}

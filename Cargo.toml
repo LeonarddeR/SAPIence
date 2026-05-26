@@ -8,6 +8,9 @@ license = "LGPL-2.1-or-later"
 publish = false
 links = "nvdaControllerClient"
 
+[features]
+test-hooks = []
+
 [lib]
 crate-type = ["cdylib"]
 

@@ -48,9 +48,31 @@ pub fn cancel_speech() -> Result<()> {
 }
 
 pub fn get_process_id() -> Result<u32> {
+    #[cfg(any(test, feature = "test-hooks"))]
+    if let Some(v) = test_hooks::get_override() {
+        return Ok(v);
+    }
     let mut pid: u32 = 0;
     to_result(unsafe { nvdaController_getProcessId(&mut pid) })?;
     Ok(pid)
+}
+
+#[cfg(any(test, feature = "test-hooks"))]
+pub mod test_hooks {
+    use std::sync::atomic::{AtomicU32, Ordering};
+    static OVERRIDE: AtomicU32 = AtomicU32::new(0);
+    pub fn set_pid_override(pid: u32) {
+        OVERRIDE.store(pid, Ordering::SeqCst);
+    }
+    pub fn clear_pid_override() {
+        OVERRIDE.store(0, Ordering::SeqCst);
+    }
+    pub(super) fn get_override() -> Option<u32> {
+        match OVERRIDE.load(Ordering::SeqCst) {
+            0 => None,
+            v => Some(v),
+        }
+    }
 }
 
 pub fn set_on_ssml_mark_reached_callback(callback: onSsmlMarkReachedFuncType) -> Result<()> {
