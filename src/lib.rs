@@ -57,10 +57,10 @@ fn read_log_level() -> Option<tracing::Level> {
     const VALUE: &str = "LogLevel";
     let v = CURRENT_USER
         .open(PATH)
-        .and_then(|k| k.get_u32(VALUE))
-        .or_else(|_| LOCAL_MACHINE.open(PATH).and_then(|k| k.get_u32(VALUE)))
+        .and_then(|k| k.get_string(VALUE))
+        .or_else(|_| LOCAL_MACHINE.open(PATH).and_then(|k| k.get_string(VALUE)))
         .ok()?;
-    tracing::Level::from_str(&v.to_string()).ok()
+    tracing::Level::from_str(&v).ok()
 }
 
 fn preload_controller_client(hinst: HMODULE) {
