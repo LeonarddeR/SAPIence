@@ -217,7 +217,7 @@ Safety cap: `200 ms × character_count`. If exceeded, log a warning and return w
 
 ### Marks (`marks.rs`)
 
-NVDA's mark callback is process-global with a single function-pointer slot. Registered once at DLL load (or lazily on first `Speak`).
+NVDA's mark callback is process-global with a single function-pointer slot. Registered lazily on first `Speak` (via `std::sync::Once`), never unregistered for the DLL's lifetime.
 
 ```rust
 static UTT_COUNTER: AtomicU64 = AtomicU64::new(0);
@@ -248,7 +248,7 @@ extern "system" fn on_mark(name: *const wchar_t) {
 
 - `asynchronous=true` keeps the SAPI worker thread free for `Write`-driven pacing and action polling.
 - `priority=Next` queues without interrupting NVDA's current utterance.
-- The mark callback is registered once at module init, not per call — the API takes a process-global slot.
+- The mark callback is registered lazily on first `Speak` (process-global slot), not per call.
 
 ### SAPI actions
 
