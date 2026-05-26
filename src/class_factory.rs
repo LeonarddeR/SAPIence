@@ -7,9 +7,12 @@ use windows::{
     Win32::{
         Foundation::{CLASS_E_CLASSNOTAVAILABLE, CLASS_E_NOAGGREGATION, E_NOINTERFACE},
         Media::Speech::{ISpObjectWithToken, ISpTTSEngine},
-        System::{Com::{IClassFactory, IClassFactory_Impl}, Threading::GetCurrentProcessId},
+        System::{
+            Com::{IClassFactory, IClassFactory_Impl},
+            Threading::GetCurrentProcessId,
+        },
     },
-    core::{implement, BOOL, Error, GUID, IUnknown, Interface, Ref, Result},
+    core::{BOOL, Error, GUID, IUnknown, Interface, Ref, Result, implement},
 };
 
 use crate::{nvda, tts_engine::TtsEngine};

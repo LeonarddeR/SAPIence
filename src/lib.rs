@@ -14,24 +14,22 @@ pub mod tts_engine;
 
 use core::ffi::c_void;
 use std::panic;
-use std::sync::atomic::{AtomicIsize, AtomicU32, Ordering};
 use std::sync::Once;
+use std::sync::atomic::{AtomicIsize, AtomicU32, Ordering};
 use tracing::{debug, error, instrument, trace, warn};
 use windows::{
     Win32::{
-        Foundation::{
-            CLASS_E_CLASSNOTAVAILABLE, E_UNEXPECTED, HMODULE, S_FALSE, S_OK,
-        },
+        Foundation::{CLASS_E_CLASSNOTAVAILABLE, E_UNEXPECTED, HMODULE, S_FALSE, S_OK},
         System::{
             Com::IClassFactory,
             LibraryLoader::{
-                DisableThreadLibraryCalls, GetModuleFileNameW, LoadLibraryExW,
-                LOAD_WITH_ALTERED_SEARCH_PATH,
+                DisableThreadLibraryCalls, GetModuleFileNameW, LOAD_WITH_ALTERED_SEARCH_PATH,
+                LoadLibraryExW,
             },
             SystemServices::{DLL_PROCESS_ATTACH, DLL_PROCESS_DETACH},
         },
     },
-    core::{HRESULT, Interface, OutRef, PCWSTR, Ref, GUID, BOOL, HSTRING},
+    core::{BOOL, GUID, HRESULT, HSTRING, Interface, OutRef, PCWSTR, Ref},
 };
 use windows_registry::{CURRENT_USER, LOCAL_MACHINE};
 

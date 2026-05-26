@@ -5,8 +5,8 @@ use std::time::{Duration, Instant};
 use tracing::{trace, warn};
 use windows::Win32::Foundation::{LPARAM, WPARAM};
 use windows::Win32::Media::Speech::{
-    ISpTTSEngineSite, SPEVENT, SPEVENTENUM, SPEVENTLPARAMTYPE, SPEI_TTS_BOOKMARK,
-    SPEI_WORD_BOUNDARY, SPET_LPARAM_IS_STRING, SPVES_ABORT, SPVES_SKIP,
+    ISpTTSEngineSite, SPEI_TTS_BOOKMARK, SPEI_WORD_BOUNDARY, SPET_LPARAM_IS_STRING, SPEVENT,
+    SPEVENTENUM, SPEVENTLPARAMTYPE, SPVES_ABORT, SPVES_SKIP,
 };
 use windows::core::HSTRING;
 
@@ -63,7 +63,10 @@ pub fn pace_until_end(
             let mut t = windows::Win32::Media::Speech::SPVSKIPTYPE(0);
             let mut n: i32 = 0;
             if unsafe { site.GetSkipInfo(&mut t, &mut n) }.is_ok() {
-                return PaceOutcome::Skip { count: n, skip_type: t.0 };
+                return PaceOutcome::Skip {
+                    count: n,
+                    skip_type: t.0,
+                };
             }
         }
 

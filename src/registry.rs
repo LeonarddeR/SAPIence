@@ -66,11 +66,7 @@ pub fn register(parent: &Key, dll_path: &str) -> Result<()> {
 }
 
 pub fn unregister(parent: &Key) -> Result<()> {
-    let voices = parent
-        .options()
-        .write()
-        .read()
-        .open(VOICES_TOKENS_FOLDER)?;
+    let voices = parent.options().write().read().open(VOICES_TOKENS_FOLDER)?;
     let _ = voices.remove_tree(VOICE_TOKEN_NAME);
 
     let cls = parent.options().write().read().open(COM_CLS_FOLDER)?;

@@ -16,15 +16,12 @@ impl<'a> Fragment<'a> {
         if self.raw.pTextStart.is_null() || self.raw.ulTextLen == 0 {
             return &[];
         }
-        unsafe {
-            std::slice::from_raw_parts(self.raw.pTextStart.0, self.raw.ulTextLen as usize)
-        }
+        unsafe { std::slice::from_raw_parts(self.raw.pTextStart.0, self.raw.ulTextLen as usize) }
     }
 
     pub fn text_string(&self) -> String {
         String::from_utf16_lossy(self.text()).to_string()
     }
-
 }
 
 /// # Safety
@@ -36,7 +33,9 @@ pub unsafe fn from_raw<'a>(ptr: *const SPVTEXTFRAG) -> Option<Fragment<'a>> {
 /// # Safety
 /// `ptr` must be null or point to a valid linked list of `SPVTEXTFRAG` that outlives `'a`.
 pub unsafe fn iter<'a>(ptr: *const SPVTEXTFRAG) -> FragmentIter<'a> {
-    FragmentIter { cur: unsafe { from_raw(ptr) } }
+    FragmentIter {
+        cur: unsafe { from_raw(ptr) },
+    }
 }
 
 pub struct FragmentIter<'a> {

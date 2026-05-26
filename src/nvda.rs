@@ -1,19 +1,24 @@
 //! Safe Rust wrappers over the NVDA Controller Client bindings.
 
 mod bindings {
-    #![allow(non_upper_case_globals, non_camel_case_types, non_snake_case, dead_code)]
+    #![allow(
+        non_upper_case_globals,
+        non_camel_case_types,
+        non_snake_case,
+        dead_code
+    )]
     include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
 }
 
-pub use bindings::{error_status_t, onSsmlMarkReachedFuncType, wchar_t};
 use bindings::{
-    nvdaController_cancelSpeech, nvdaController_getProcessId,
+    SPEECH_PRIORITY, SYMBOL_LEVEL, nvdaController_cancelSpeech, nvdaController_getProcessId,
     nvdaController_setOnSsmlMarkReachedCallback, nvdaController_speakSsml,
-    nvdaController_testIfRunning, SPEECH_PRIORITY, SYMBOL_LEVEL,
+    nvdaController_testIfRunning,
 };
+pub use bindings::{error_status_t, onSsmlMarkReachedFuncType, wchar_t};
 use windows::{
-    core::{HSTRING, Result},
     Win32::Foundation::WIN32_ERROR,
+    core::{HSTRING, Result},
 };
 
 #[repr(u32)]

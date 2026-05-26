@@ -26,7 +26,11 @@ impl Default for Prosody {
 impl Prosody {
     /// Default per SAPI: RateAdj 0, Volume 100, PitchAdj 0.
     pub fn defaults() -> Self {
-        Self { rate_adj: 0, volume: 100, pitch_adj: 0 }
+        Self {
+            rate_adj: 0,
+            volume: 100,
+            pitch_adj: 0,
+        }
     }
 
     pub fn is_default(&self) -> bool {
@@ -129,7 +133,10 @@ pub fn build_utterance_ssml(
 ) -> (String, u32) {
     let mut s = format!(r#"<speak version="1.0" xml:lang="{}">"#, xml_escape(lang));
     for b in bookmarks_before {
-        s.push_str(&format!(r#"<mark name="{}"/>"#, xml_escape(&bookmark_mark(utt, b))));
+        s.push_str(&format!(
+            r#"<mark name="{}"/>"#,
+            xml_escape(&bookmark_mark(utt, b))
+        ));
     }
     let prosody_open_tag = prosody_open(prosody);
     if let Some(open) = &prosody_open_tag {
@@ -181,7 +188,12 @@ mod tests {
 
     #[test]
     fn nondefault_prosody_emits_all_three_attrs() {
-        let s = prosody_open(Prosody { rate_adj: 1, volume: 80, pitch_adj: -2 }).unwrap();
+        let s = prosody_open(Prosody {
+            rate_adj: 1,
+            volume: 80,
+            pitch_adj: -2,
+        })
+        .unwrap();
         assert!(s.contains(r#"rate="110%""#));
         assert!(s.contains(r#"volume="80""#));
         assert!(s.contains(r#"pitch="-2st""#));
@@ -194,13 +206,7 @@ mod tests {
 
     #[test]
     fn build_utterance_with_defaults() {
-        let (s, n) = build_utterance_ssml(
-            42,
-            "hello world",
-            "en-US",
-            Prosody::defaults(),
-            &[],
-        );
+        let (s, n) = build_utterance_ssml(42, "hello world", "en-US", Prosody::defaults(), &[]);
         assert_eq!(n, 2);
         assert!(s.contains(r#"xml:lang="en-US""#));
         assert!(s.contains(r#"<mark name="w_42_0"/>"#));
@@ -215,7 +221,11 @@ mod tests {
             7,
             "hi",
             "nl-NL",
-            Prosody { rate_adj: -1, volume: 50, pitch_adj: 0 },
+            Prosody {
+                rate_adj: -1,
+                volume: 50,
+                pitch_adj: 0,
+            },
             &["chapter1"],
         );
         assert_eq!(n, 1);
@@ -226,9 +236,18 @@ mod tests {
 
     #[test]
     fn parse_mark_roundtrip() {
-        assert_eq!(parse_mark("w_3_5"),  Some(ParsedMark::Word { utt: 3, idx: 5 }));
-        assert_eq!(parse_mark("end_9"),  Some(ParsedMark::End { utt: 9 }));
-        assert_eq!(parse_mark("bm_2_x"), Some(ParsedMark::Bookmark { utt: 2, name: "x".into() }));
+        assert_eq!(
+            parse_mark("w_3_5"),
+            Some(ParsedMark::Word { utt: 3, idx: 5 })
+        );
+        assert_eq!(parse_mark("end_9"), Some(ParsedMark::End { utt: 9 }));
+        assert_eq!(
+            parse_mark("bm_2_x"),
+            Some(ParsedMark::Bookmark {
+                utt: 2,
+                name: "x".into()
+            })
+        );
         assert!(parse_mark("garbage").is_none());
     }
 }

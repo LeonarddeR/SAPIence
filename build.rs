@@ -1,4 +1,8 @@
-use std::{env, fs, io::Cursor, path::{Path, PathBuf}};
+use std::{
+    env, fs,
+    io::Cursor,
+    path::{Path, PathBuf},
+};
 
 const NVDA_CONTROLLER_VERSION: &str = "2026.1.1";
 const URL_FMT: &str =
@@ -9,10 +13,10 @@ fn main() {
     println!("cargo:rerun-if-env-changed=SAPIENCE_NVDA_CONTROLLER_DIR");
 
     let arch = match env::var("CARGO_CFG_TARGET_ARCH").unwrap().as_str() {
-        "x86_64"  => "x64",
+        "x86_64" => "x64",
         "aarch64" => "arm64",
-        "x86"     => "x86",
-        other     => panic!("Unsupported target arch: {other}"),
+        "x86" => "x86",
+        other => panic!("Unsupported target arch: {other}"),
     };
 
     let root = if let Ok(dir) = env::var("SAPIENCE_NVDA_CONTROLLER_DIR") {
@@ -22,7 +26,9 @@ fn main() {
             .expect("failed to acquire NVDA controller client")
     };
 
-    let arch_dir = root.join(arch).canonicalize()
+    let arch_dir = root
+        .join(arch)
+        .canonicalize()
         .expect("arch dir not found in controller client");
 
     println!("cargo:rustc-link-search=native={}", arch_dir.display());

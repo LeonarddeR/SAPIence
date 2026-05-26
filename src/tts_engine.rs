@@ -9,19 +9,23 @@ use windows::{
         Media::Audio::WAVEFORMATEX,
         Media::Speech::{
             ISpObjectToken, ISpObjectWithToken, ISpObjectWithToken_Impl, ISpTTSEngine,
-            ISpTTSEngineSite, ISpTTSEngine_Impl, SpWaveFormatEx, SPVA_Bookmark,
-            SPVA_Silence, SPVA_Speak, SPVA_SpellOut, SPVTEXTFRAG,
+            ISpTTSEngine_Impl, ISpTTSEngineSite, SPVA_Bookmark, SPVA_Silence, SPVA_Speak,
+            SPVA_SpellOut, SPVTEXTFRAG,
         },
         System::Com::CoTaskMemAlloc,
     },
-    core::{implement, Error, GUID, Ref, Result},
+    core::{Error, GUID, Ref, Result, implement},
 };
+
+// SPDFID_WaveFormatEx — the only valid format identifier for ISpTTSEngine::GetOutputFormat.
+// Not exposed by windows-0.62; defined from sapi.h.
+const SPDFID_WAVE_FORMAT_EX: GUID = GUID::from_u128(0xc31adbae_527f_4ff5_a230_f62bb61ff70c);
 
 use crate::{
     fragments::iter as iter_fragments,
     marks,
     nvda::{self, SpeechPriority, SymbolLevel},
-    pacing::{self, PaceOutcome, BYTES_PER_SAMPLE, SAMPLE_RATE_HZ},
+    pacing::{self, BYTES_PER_SAMPLE, PaceOutcome, SAMPLE_RATE_HZ},
     ssml::{self, Prosody},
 };
 
@@ -32,7 +36,9 @@ pub struct TtsEngine {
 
 impl TtsEngine {
     pub fn new() -> Self {
-        Self { token: Mutex::new(None) }
+        Self {
+            token: Mutex::new(None),
+        }
     }
 }
 
@@ -49,10 +55,7 @@ impl ISpObjectWithToken_Impl for TtsEngine_Impl {
     }
 
     fn GetObjectToken(&self) -> Result<ISpObjectToken> {
-        self.token
-            .lock()
-            .clone()
-            .ok_or_else(|| Error::from(E_FAIL))
+        self.token.lock().clone().ok_or_else(|| Error::from(E_FAIL))
     }
 }
 
@@ -68,9 +71,8 @@ impl ISpTTSEngine_Impl for TtsEngine_Impl {
         if pdesiredfmtid.is_null() || ppcomemdesiredwaveformatex.is_null() {
             return Err(Error::from(E_POINTER));
         }
-        let wfx = unsafe {
-            CoTaskMemAlloc(std::mem::size_of::<WAVEFORMATEX>()) as *mut WAVEFORMATEX
-        };
+        let wfx =
+            unsafe { CoTaskMemAlloc(std::mem::size_of::<WAVEFORMATEX>()) as *mut WAVEFORMATEX };
         if wfx.is_null() {
             return Err(Error::from(E_FAIL));
         }
@@ -84,7 +86,7 @@ impl ISpTTSEngine_Impl for TtsEngine_Impl {
                 wBitsPerSample: 16,
                 cbSize: 0,
             };
-            *pdesiredfmtid = SpWaveFormatEx;
+            *pdesiredfmtid = SPDFID_WAVE_FORMAT_EX;
             *ppcomemdesiredwaveformatex = wfx;
         }
         Ok(())
@@ -146,7 +148,11 @@ impl ISpTTSEngine_Impl for TtsEngine_Impl {
                             pitch_adj: state.PitchAdj.MiddleAdj,
                         };
                         let (s, _word_count) = ssml::build_utterance_ssml(
-                            utt, &text, "en-US", prosody, &bookmarks_ref,
+                            utt,
+                            &text,
+                            "en-US",
+                            prosody,
+                            &bookmarks_ref,
                         );
                         s
                     };
@@ -167,9 +173,8 @@ impl ISpTTSEngine_Impl for TtsEngine_Impl {
                     });
 
                     let cap = Duration::from_millis(200 * (text.chars().count() as u64 + 1));
-                    let outcome = pacing::pace_until_end(
-                        &site, ch, interest, &mut audio_offset, cap,
-                    );
+                    let outcome =
+                        pacing::pace_until_end(&site, ch, interest, &mut audio_offset, cap);
                     marks::unregister(utt);
 
                     match outcome {
@@ -201,9 +206,7 @@ impl ISpTTSEngine_Impl for TtsEngine_Impl {
                     // Use a dummy channel that will never signal end_reached.
                     let utt = ssml::next_utterance_id();
                     let ch = marks::register(utt);
-                    let _ = pacing::pace_until_end(
-                        &site, ch, interest, &mut audio_offset, cap,
-                    );
+                    let _ = pacing::pace_until_end(&site, ch, interest, &mut audio_offset, cap);
                     marks::unregister(utt);
                 }
                 SPVA_Bookmark => {

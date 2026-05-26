@@ -6,7 +6,7 @@ use std::sync::{Arc, LazyLock, Once};
 use tracing::{trace, warn};
 
 use crate::nvda::{self, error_status_t, wchar_t};
-use crate::ssml::{parse_mark, ParsedMark};
+use crate::ssml::{ParsedMark, parse_mark};
 
 #[derive(Default)]
 struct ChannelInner {
@@ -38,8 +38,7 @@ impl MarkChannel {
     }
 }
 
-static REGISTRY: LazyLock<RwLock<HashMap<u64, Arc<MarkChannel>>>> =
-    LazyLock::new(Default::default);
+static REGISTRY: LazyLock<RwLock<HashMap<u64, Arc<MarkChannel>>>> = LazyLock::new(Default::default);
 
 pub fn register(utt: u64) -> Arc<MarkChannel> {
     install_callback();

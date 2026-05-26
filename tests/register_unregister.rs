@@ -1,6 +1,6 @@
 mod common;
 
-use common::{DllHandle, HklmOverride, CLSID_SAPIENCE_VOICE};
+use common::{CLSID_SAPIENCE_VOICE, DllHandle, HklmOverride};
 use serial_test::serial;
 
 #[test]
@@ -17,7 +17,9 @@ fn register_creates_keys_unregister_removes_them() {
     let cls = windows_registry::LOCAL_MACHINE
         .open(&cls_path)
         .expect("CLSID key missing");
-    let _ = cls.open("InprocServer32").expect("InprocServer32 key missing");
+    let _ = cls
+        .open("InprocServer32")
+        .expect("InprocServer32 key missing");
 
     // Verify voice token
     let token = windows_registry::LOCAL_MACHINE

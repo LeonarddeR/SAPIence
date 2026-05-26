@@ -1,23 +1,19 @@
 #![allow(dead_code)]
 
-use std::{io, path::PathBuf, sync::OnceLock};
 use libloading::Library;
+use std::{io, path::PathBuf, sync::OnceLock};
 use windows::{
     Win32::{
         Foundation::ERROR_SUCCESS,
-        System::{
-            Registry::{
-                HKEY, HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE,
-                RegCloseKey, RegCreateKeyW, RegDeleteTreeW,
-                RegOverridePredefKey,
-            },
+        System::Registry::{
+            HKEY, HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE, RegCloseKey, RegCreateKeyW,
+            RegDeleteTreeW, RegOverridePredefKey,
         },
     },
     core::{GUID, HRESULT, PCWSTR},
 };
 
-pub const CLSID_SAPIENCE_VOICE: GUID =
-    GUID::from_u128(0x5A91_E9CE_2BC7_4F8E_9DA1_4D7C_9F2E_7E11);
+pub const CLSID_SAPIENCE_VOICE: GUID = GUID::from_u128(0x5A91_E9CE_2BC7_4F8E_9DA1_4D7C_9F2E_7E11);
 
 pub fn dll_path() -> PathBuf {
     if let Some(p) = std::env::var_os("SAPIENCE_DLL_PATH") {
@@ -26,7 +22,11 @@ pub fn dll_path() -> PathBuf {
     let target_dir = std::env::var_os("CARGO_TARGET_DIR")
         .map(PathBuf::from)
         .unwrap_or_else(|| PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("target"));
-    let profile = if cfg!(debug_assertions) { "debug" } else { "release" };
+    let profile = if cfg!(debug_assertions) {
+        "debug"
+    } else {
+        "release"
+    };
     let triple = if cfg!(target_arch = "aarch64") {
         "aarch64-pc-windows-msvc"
     } else if cfg!(target_arch = "x86_64") {
@@ -101,35 +101,27 @@ impl HklmOverride {
             .duration_since(UNIX_EPOCH)
             .map(|d| d.subsec_nanos())
             .unwrap_or(0);
-        let unique = format!(
-            r"Software\SAPIence_Test_{}_{}",
-            std::process::id(),
-            nanos
-        );
-        let path_w: Vec<u16> = unique
-            .encode_utf16()
-            .chain(std::iter::once(0u16))
-            .collect();
+        let unique = format!(r"Software\SAPIence_Test_{}_{}", std::process::id(), nanos);
+        let path_w: Vec<u16> = unique.encode_utf16().chain(std::iter::once(0u16)).collect();
 
         let mut raw_key = HKEY(std::ptr::null_mut());
-        let rc = unsafe {
-            RegCreateKeyW(
-                HKEY_CURRENT_USER,
-                PCWSTR(path_w.as_ptr()),
-                &mut raw_key,
-            )
-        };
+        let rc = unsafe { RegCreateKeyW(HKEY_CURRENT_USER, PCWSTR(path_w.as_ptr()), &mut raw_key) };
         if rc != ERROR_SUCCESS {
             return Err(io::Error::from_raw_os_error(rc.0 as i32));
         }
 
         let rc2 = unsafe { RegOverridePredefKey(HKEY_LOCAL_MACHINE, Some(raw_key)) };
         if rc2 != ERROR_SUCCESS {
-            unsafe { let _ = RegCloseKey(raw_key); };
+            unsafe {
+                let _ = RegCloseKey(raw_key);
+            };
             return Err(io::Error::from_raw_os_error(rc2.0 as i32));
         }
 
-        Ok(Self { raw_key, subkey_path: path_w })
+        Ok(Self {
+            raw_key,
+            subkey_path: path_w,
+        })
     }
 }
 
@@ -147,16 +139,15 @@ impl Drop for HklmOverride {
 pub fn read_log_tail() -> String {
     let path = std::env::temp_dir().join("SAPIence.log");
     match std::fs::read_to_string(&path) {
-        Ok(s) => {
-            s.lines()
-                .rev()
-                .take(80)
-                .collect::<Vec<_>>()
-                .into_iter()
-                .rev()
-                .collect::<Vec<_>>()
-                .join("\n")
-        }
+        Ok(s) => s
+            .lines()
+            .rev()
+            .take(80)
+            .collect::<Vec<_>>()
+            .into_iter()
+            .rev()
+            .collect::<Vec<_>>()
+            .join("\n"),
         Err(_) => String::new(),
     }
 }
