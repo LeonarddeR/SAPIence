@@ -108,26 +108,40 @@ impl ISpTTSEngine_Impl for TtsEngine_Impl {
             let state = frag.raw().State;
             match state.eAction {
                 SPVA_Speak | SPVA_SpellOut => {
-                    let text = if state.eAction == SPVA_SpellOut {
-                        format!(
-                            r#"<say-as interpret-as="characters">{}</say-as>"#,
-                            ssml::xml_escape(&frag.text_string())
-                        )
-                    } else {
-                        frag.text_string()
-                    };
-
-                    let prosody = Prosody {
-                        rate_adj: state.RateAdj,
-                        volume: state.Volume,
-                        pitch_adj: state.PitchAdj.MiddleAdj,
-                    };
                     let utt = ssml::next_utterance_id();
                     let bookmarks_ref: Vec<&str> =
                         pending_bookmarks.iter().map(String::as_str).collect();
-                    let (ssml_str, _word_count) = ssml::build_utterance_ssml(
-                        utt, &text, "en-US", prosody, &bookmarks_ref,
-                    );
+
+                    let text = frag.text_string();
+                    let ssml_str = if state.eAction == SPVA_SpellOut {
+                        // Build SpellOut SSML directly — no word splitting, no word marks.
+                        // End mark is still needed for pacing.
+                        let inner = ssml::xml_escape(&text);
+                        let mut s = String::from(r#"<speak version="1.0" xml:lang="en-US">"#);
+                        for b in &bookmarks_ref {
+                            s.push_str(&format!(
+                                r#"<mark name="{}"/>"#,
+                                ssml::xml_escape(&ssml::bookmark_mark(utt, b))
+                            ));
+                        }
+                        s.push_str(&format!(
+                            r#"<say-as interpret-as="characters">{inner}</say-as>"#
+                        ));
+                        s.push_str(&format!(r#"<mark name="{}"/>"#, ssml::end_mark(utt)));
+                        s.push_str("</speak>");
+                        s
+                    } else {
+                        // Normal speak: use build_utterance_ssml for prosody + word marks.
+                        let prosody = Prosody {
+                            rate_adj: state.RateAdj,
+                            volume: state.Volume,
+                            pitch_adj: state.PitchAdj.MiddleAdj,
+                        };
+                        let (s, _word_count) = ssml::build_utterance_ssml(
+                            utt, &text, "en-US", prosody, &bookmarks_ref,
+                        );
+                        s
+                    };
                     pending_bookmarks.clear();
 
                     let ch = marks::register(utt);
@@ -162,7 +176,12 @@ impl ISpTTSEngine_Impl for TtsEngine_Impl {
                             let _ = unsafe { site.CompleteSkip(0) };
                             // Continue to next fragment after skip.
                         }
-                        _ => {
+                        PaceOutcome::SafetyCapped => {
+                            let _ = nvda::cancel_speech();
+                            let _ = worker.join();
+                            // Continue to next fragment.
+                        }
+                        PaceOutcome::Completed => {
                             let _ = worker.join();
                         }
                     }
