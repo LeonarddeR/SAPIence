@@ -1,0 +1,47 @@
+[package]
+name = "sapience"
+description = "A SAPI 5 TTS engine that forwards speech to NVDA"
+version = "0.1.0"
+authors = ["Leonard de Ruijter <l.de.ruijter@sevenp.nl>"]
+edition = "2024"
+license = "LGPL-2.1-or-later"
+publish = false
+links = "nvdaControllerClient"
+
+[lib]
+crate-type = ["cdylib"]
+
+[profile.release]
+lto = true
+codegen-units = 1
+opt-level = "s"
+
+[dependencies]
+parking_lot = "0.12"
+tracing = "0.1"
+tracing-appender = { version = "0.2", features = ["parking_lot"] }
+tracing-subscriber = { version = "0.3", default-features = false, features = ["parking_lot", "tracing-log"] }
+windows-registry = "0.6"
+
+[dependencies.windows]
+version = "0.62"
+features = [
+    "Win32_Foundation",
+    "Win32_Media_Speech",
+    "Win32_System_Com",
+    "Win32_System_Com_StructuredStorage",
+    "Win32_System_LibraryLoader",
+    "Win32_System_Ole",
+    "Win32_System_SystemServices",
+    "Win32_System_Threading",
+]
+
+[build-dependencies]
+bindgen = "0.69"
+reqwest = { version = "0.12", default-features = false, features = ["blocking", "rustls-tls"] }
+zip = { version = "2", default-features = false, features = ["deflate"] }
+
+[dev-dependencies]
+libloading = "0.9"
+tempfile = "3"
+serial_test = "3"
