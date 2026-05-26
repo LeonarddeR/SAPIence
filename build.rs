@@ -18,7 +18,7 @@ fn main() {
     let root = if let Ok(dir) = env::var("SAPIENCE_NVDA_CONTROLLER_DIR") {
         PathBuf::from(dir)
     } else {
-        ensure_downloaded(NVDA_CONTROLLER_VERSION)
+        ensure_downloaded(NVDA_CONTROLLER_VERSION, arch)
             .expect("failed to acquire NVDA controller client")
     };
 
@@ -52,10 +52,10 @@ fn main() {
     }
 }
 
-fn ensure_downloaded(version: &str) -> Result<PathBuf, Box<dyn std::error::Error>> {
+fn ensure_downloaded(version: &str, arch: &str) -> Result<PathBuf, Box<dyn std::error::Error>> {
     let out_dir = PathBuf::from(env::var("OUT_DIR")?);
     let dest = out_dir.join("nvda-controller-client").join(version);
-    if dest.join("x64").join("nvdaController.h").is_file() {
+    if dest.join(arch).join("nvdaController.h").is_file() {
         return Ok(dest);
     }
     fs::create_dir_all(&dest)?;
