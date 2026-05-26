@@ -1,6 +1,9 @@
 //! ISpTTSEngine + ISpObjectWithToken implementation.
 
 use parking_lot::Mutex;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::mpsc;
 use std::time::Duration;
 use tracing::{instrument, warn};
 use windows::{
@@ -160,41 +163,60 @@ impl ISpTTSEngine_Impl for TtsEngine_Impl {
 
                     let ch = marks::register(utt);
 
-                    // Spawn worker thread for synchronous NVDA call.
-                    // asynchronous=false is required for mark callbacks to fire.
+                    // Spawn worker for the synchronous NVDA call.
+                    // asynchronous=false is required: with async=true NVDA sets markCallable=None
+                    // and never fires mark callbacks, so end_reached never arrives.
+                    //
+                    // OBJECT_COUNT is incremented here and decremented inside the worker after
+                    // speak_ssml returns. This keeps DllCanUnloadNow returning S_FALSE for as
+                    // long as the worker is alive, preventing a use-after-free if SAPI unloads
+                    // the DLL while the worker is still blocked in the IPC call.
+                    crate::OBJECT_COUNT.fetch_add(1, Ordering::Relaxed);
+                    let speech_ended = Arc::new(AtomicBool::new(false));
+                    let speech_ended_for_worker = Arc::clone(&speech_ended);
+                    let (done_tx, done_rx) = mpsc::channel::<()>();
                     let ssml_for_worker = ssml_str.clone();
                     let worker = std::thread::spawn(move || {
                         let _ = nvda::speak_ssml(
                             &ssml_for_worker,
                             SymbolLevel::Unchanged,
-                            SpeechPriority::Next,
+                            SpeechPriority::Now,
                             false, // synchronous — required for mark callbacks
                         );
+                        // Signal pacing loop to stop regardless of success or ERROR_CANCELLED.
+                        speech_ended_for_worker.store(true, Ordering::Release);
+                        crate::OBJECT_COUNT.fetch_sub(1, Ordering::Relaxed);
+                        let _ = done_tx.send(());
                     });
 
                     let cap = Duration::from_millis(200 * (text.chars().count() as u64 + 1));
-                    let outcome =
-                        pacing::pace_until_end(&site, ch, interest, &mut audio_offset, cap);
+                    let outcome = pacing::pace_until_end(
+                        &site,
+                        ch,
+                        interest,
+                        &mut audio_offset,
+                        cap,
+                        &speech_ended,
+                    );
                     marks::unregister(utt);
 
                     match outcome {
                         PaceOutcome::Aborted => {
-                            let _ = nvda::cancel_speech();
-                            let _ = worker.join();
+                            cancel_and_join(worker, done_rx);
                             return Ok(());
                         }
                         PaceOutcome::Skip { .. } => {
-                            let _ = nvda::cancel_speech();
-                            let _ = worker.join();
+                            cancel_and_join(worker, done_rx);
                             let _ = unsafe { site.CompleteSkip(0) };
                             // Continue to next fragment after skip.
                         }
                         PaceOutcome::SafetyCapped => {
-                            let _ = nvda::cancel_speech();
-                            let _ = worker.join();
+                            cancel_and_join(worker, done_rx);
                             // Continue to next fragment.
                         }
                         PaceOutcome::Completed => {
+                            // End mark fires just before synthDoneSpeaking puts None in
+                            // NVDA's markQueue, so the IPC call returns imminently.
                             let _ = worker.join();
                         }
                     }
@@ -206,7 +228,15 @@ impl ISpTTSEngine_Impl for TtsEngine_Impl {
                     // Use a dummy channel that will never signal end_reached.
                     let utt = ssml::next_utterance_id();
                     let ch = marks::register(utt);
-                    let _ = pacing::pace_until_end(&site, ch, interest, &mut audio_offset, cap);
+                    let never_ended = AtomicBool::new(false);
+                    let _ = pacing::pace_until_end(
+                        &site,
+                        ch,
+                        interest,
+                        &mut audio_offset,
+                        cap,
+                        &never_ended,
+                    );
                     marks::unregister(utt);
                 }
                 SPVA_Bookmark => {
@@ -218,5 +248,31 @@ impl ISpTTSEngine_Impl for TtsEngine_Impl {
             }
         }
         Ok(())
+    }
+}
+
+/// Cancel NVDA speech then wait up to 2 s for the worker to finish.
+///
+/// With `asynchronous=false`, `nvdaController_speakSsml` blocks in NVDA's Python until
+/// `synthDoneSpeaking` or `speechCanceled` fires. `cancel_speech` queues
+/// `speech.cancelSpeech` on NVDA's event queue; once processed it fires `speechCanceled`
+/// which unblocks the IPC call and lets the worker exit.
+///
+/// If NVDA is wedged and the worker doesn't exit within 2 s, the `JoinHandle` is
+/// forgotten (thread keeps running). `OBJECT_COUNT` was incremented before spawn and
+/// will be decremented by the worker when it eventually finishes, so `DllCanUnloadNow`
+/// keeps returning `S_FALSE` until then.
+fn cancel_and_join(worker: std::thread::JoinHandle<()>, done_rx: mpsc::Receiver<()>) {
+    let _ = nvda::cancel_speech();
+    match done_rx.recv_timeout(Duration::from_secs(2)) {
+        Ok(()) => {
+            let _ = worker.join();
+        }
+        Err(_) => {
+            warn!(
+                "NVDA worker did not exit 2 s after cancel; leaking thread (OBJECT_COUNT holds DLL pin)"
+            );
+            std::mem::forget(worker);
+        }
     }
 }

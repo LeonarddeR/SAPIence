@@ -1,6 +1,7 @@
 //! Silent-PCM pacing, action polling, and event emission.
 
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 use tracing::{trace, warn};
 use windows::Win32::Foundation::{LPARAM, WPARAM};
@@ -33,6 +34,7 @@ pub fn pace_until_end(
     interest: u64,
     audio_offset: &mut u64,
     safety_cap: Duration,
+    speech_ended: &AtomicBool,
 ) -> PaceOutcome {
     let chunk = vec![0u8; chunk_bytes()];
     let start = Instant::now();
@@ -83,6 +85,11 @@ pub fn pace_until_end(
             }
         }
         if snap.end_reached {
+            return PaceOutcome::Completed;
+        }
+
+        // Worker exited (speak_ssml returned SUCCESS or ERROR_CANCELLED). Stop pacing.
+        if speech_ended.load(Ordering::Acquire) {
             return PaceOutcome::Completed;
         }
 
