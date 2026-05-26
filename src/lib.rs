@@ -4,3 +4,4 @@
 
 pub mod clsid;
 pub mod nvda;
+pub mod registry;
