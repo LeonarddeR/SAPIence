@@ -10,11 +10,17 @@ pub fn next_utterance_id() -> u64 {
 }
 
 /// Prosody adjustments from an SPVSTATE.
-#[derive(Debug, Default, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Prosody {
     pub rate_adj: i32,
     pub volume: u32,
     pub pitch_adj: i32,
+}
+
+impl Default for Prosody {
+    fn default() -> Self {
+        Self::defaults()
+    }
 }
 
 impl Prosody {
@@ -121,9 +127,9 @@ pub fn build_utterance_ssml(
     prosody: Prosody,
     bookmarks_before: &[&str],
 ) -> (String, u32) {
-    let mut s = format!(r#"<speak version="1.0" xml:lang="{lang}">"#);
+    let mut s = format!(r#"<speak version="1.0" xml:lang="{}">"#, xml_escape(lang));
     for b in bookmarks_before {
-        s.push_str(&format!(r#"<mark name="{}"/>"#, bookmark_mark(utt, b)));
+        s.push_str(&format!(r#"<mark name="{}"/>"#, xml_escape(&bookmark_mark(utt, b))));
     }
     let prosody_open_tag = prosody_open(prosody);
     if let Some(open) = &prosody_open_tag {
