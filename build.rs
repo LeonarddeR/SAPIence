@@ -36,6 +36,8 @@ fn main() {
     println!("cargo:rustc-link-arg=/DELAYLOAD:nvdaControllerClient.dll");
     println!("cargo:rustc-link-lib=delayimp");
 
+    set_bundled_libclang();
+
     let header = arch_dir.join("nvdaController.h");
     let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
     bindgen::Builder::default()
@@ -56,6 +58,62 @@ fn main() {
         let _ = fs::create_dir_all(&profile_dir);
         let _ = fs::copy(arch_dir.join("nvdaControllerClient.dll"), dest);
     }
+}
+
+fn set_bundled_libclang() {
+    use std::process::Command;
+
+    // Skip if already set by caller.
+    if env::var_os("LIBCLANG_PATH").is_some() || env::var_os("CLANG_PATH").is_some() {
+        return;
+    }
+
+    // Ask vswhere for the VS install root that has the LLVM/Clang component.
+    let vswhere =
+        PathBuf::from(r"C:\Program Files (x86)\Microsoft Visual Studio\Installer\vswhere.exe");
+    if !vswhere.is_file() {
+        return;
+    }
+
+    let out = Command::new(&vswhere)
+        .args([
+            "-latest",
+            "-requires",
+            "Microsoft.VisualStudio.Component.VC.Llvm.Clang",
+            "-property",
+            "installationPath",
+        ])
+        .output()
+        .ok();
+    let install_root = match out.and_then(|o| String::from_utf8(o.stdout).ok()) {
+        Some(s) if !s.trim().is_empty() => PathBuf::from(s.trim().to_owned()),
+        _ => return,
+    };
+
+    // VS ships arch-specific LLVM trees under VC\Tools\Llvm\{x64,ARM64,bin}.
+    // Pick the subtree that matches the build HOST (bindgen runs on host, not target).
+    let host_arch = std::env::var("HOST").unwrap_or_default();
+    let llvm_subdir = match host_arch.split('-').next().unwrap_or("") {
+        "x86_64" => "x64",
+        "aarch64" => "ARM64",
+        _ => "bin",
+    };
+    let bin = install_root
+        .join("VC")
+        .join("Tools")
+        .join("Llvm")
+        .join(llvm_subdir)
+        .join("bin");
+    if !bin.is_dir() {
+        return;
+    }
+
+    let clang = bin.join("clang.exe");
+    if clang.is_file() {
+        // SAFETY: build scripts are single-threaded before proc macros run.
+        unsafe { env::set_var("CLANG_PATH", &clang) };
+    }
+    unsafe { env::set_var("LIBCLANG_PATH", &bin) };
 }
 
 fn ensure_downloaded(version: &str, arch: &str) -> Result<PathBuf, Box<dyn std::error::Error>> {
