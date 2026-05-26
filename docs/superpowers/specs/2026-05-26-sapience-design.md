@@ -58,7 +58,6 @@ Build-time dependencies (`[build-dependencies]`):
 - `bindgen` — generate `nvdaController.h` bindings.
 - `reqwest` (blocking, `rustls-tls`) — download the controller client zip.
 - `zip` — extract the zip into the build cache.
-- `sha2` — optional integrity check if NV Access publishes a hash.
 
 ## Build script
 
@@ -98,9 +97,46 @@ fn main():
         .generate()?
         .write_to_file(OUT_DIR.join("bindings.rs"))?
 
+    // 5. Copy nvdaControllerClient.dll into the cargo output dir so it
+    //    ends up next to sapience.dll for packaging/deployment.
+    fs::copy(arch_dir.join("nvdaControllerClient.dll"),
+             target_profile_dir().join("nvdaControllerClient.dll"))?
+
     println!("cargo:rerun-if-env-changed=SAPIENCE_NVDA_CONTROLLER_DIR")
     println!("cargo:rerun-if-changed=build.rs")
 ```
+
+Zip layout (verified against `nvda_2026.1.1_controllerClient.zip`):
+
+```
+<root>/
+├── license.txt
+├── readme.md
+├── x86/    nvdaController.h, nvdaControllerClient.{dll,lib,exp,pdb}
+├── x64/    "
+├── arm64/  "
+├── arm64ec/ (ignored)
+└── examples/ (ignored)
+```
+
+### Runtime DLL loading
+
+`nvdaControllerClient.dll` is a runtime dependency, not a static import. Two problems:
+
+1. **Search path**: when a SAPI host loads `sapience.dll`, Windows resolves `sapience.dll`'s imports against the *host*'s search path, not `sapience.dll`'s directory. The controller client won't be found.
+2. **Eager resolution**: standard imports are resolved before `DllMain` runs, so we can't fix the path first.
+
+Solution: **delay-load** `nvdaControllerClient.dll` plus an explicit load from `sapience.dll`'s own directory in `DllMain`.
+
+- Linker flag (MSVC): `/DELAYLOAD:nvdaControllerClient.dll`. Emitted from `build.rs` via `println!("cargo:rustc-link-arg=/DELAYLOAD:nvdaControllerClient.dll");` and `println!("cargo:rustc-link-lib=delayimp");`.
+- In `DllMain(DLL_PROCESS_ATTACH)`:
+  - `GetModuleFileNameW(INSTANCE, ...)` → strip filename → append `nvdaControllerClient.dll` → `LoadLibraryExW(path, NULL, LOAD_WITH_ALTERED_SEARCH_PATH)`.
+  - If load fails, log error but continue — first NVDA API call will surface the error to `Speak` and we return `S_OK` silently.
+- Once loaded, Windows uses the already-loaded module for subsequent symbol resolution from the delay-load thunks.
+
+### Deployment
+
+Registration must place `nvdaControllerClient.dll` alongside `sapience.dll`. The `build.rs` copies it into the cargo target/profile dir during build, so the artifacts are co-located there. The release packaging step (out of scope for this design) installs both DLLs together. `DllRegisterServer` writes the registry; it does not move files.
 
 Cache layout: `OUT_DIR/nvda-controller-client/<version>/` (per target, per profile — cheap because the zip is small). If the version dir already exists, skip download. The zip is only fetched on a clean build or version bump.
 
