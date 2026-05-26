@@ -24,6 +24,7 @@ A Rust SAPI 5 TTS engine that forwards speech to NVDA instead of synthesising au
 ```
 SAPIence/
 ├── Cargo.toml          # cdylib, edition 2024, LGPL-2.1-or-later
+├── build.rs            # download/cache NVDA controller client + bindgen
 ├── src/
 │   ├── lib.rs          # DllMain, DllGetClassObject, DllCanUnloadNow,
 │   │                   # DllRegisterServer, DllUnregisterServer
@@ -32,6 +33,7 @@ SAPIence/
 │   ├── ssml.rs         # SPVTEXTFRAG → SSML, prosody mapping, mark naming
 │   ├── pacing.rs       # silent PCM writer, action polling, event scheduling
 │   ├── marks.rs        # global mark-callback dispatcher
+│   ├── nvda.rs         # safe Rust wrappers around vendored controller bindings
 │   └── registry.rs     # COM CLSID + SAPI voice token reg/unreg
 ├── tests/
 │   ├── common/mod.rs   # ported scaffolding from rd_pipe-rs
@@ -46,10 +48,65 @@ Dependencies:
 
 - `windows` 0.62 with features: `Win32_Foundation`, `Win32_Media_Speech`, `Win32_System_Com`, `Win32_System_Com_StructuredStorage`, `Win32_System_LibraryLoader`, `Win32_System_Threading`, `Win32_System_Ole`.
 - `windows-registry` 0.6.
-- `nvda` crate at `P:\A11y\nvda\extras\controllerClient\examples\example_rust` (path or vendored).
+- NVDA Controller Client: vendored via `build.rs`. Downloads `nvda_<NVDA_CONTROLLER_VERSION>_controllerClient.zip` from `https://download.nvaccess.org/releases/stable/`, caches under `OUT_DIR/nvda-controller-client/<version>/`, runs `bindgen` against `<arch>/nvdaController.h`, links `nvdaControllerClient.lib` from the matching arch dir. The version is a `const` in `build.rs`, bumped manually. Env var `SAPIENCE_NVDA_CONTROLLER_DIR` overrides with a local pre-extracted directory (offline/dev builds; e.g., `P:\A11y\nvda\extras\controllerClient`). The previous `nvda` example crate is no longer a dependency — bindings live in SAPIence's own `nvda::` module.
 - `parking_lot`, `tracing`, `tracing-subscriber`, `tracing-appender`.
 
-No bindgen for SAPI — the `windows` crate already exposes `ISpTTSEngine`, `ISpObjectWithToken`, `ISpTTSEngineSite`, `SPVTEXTFRAG`, `SPVSTATE`, `SPEVENT`, etc., under `Win32::Media::Speech`. The `nvda` crate keeps its existing bindgen for `nvdaController.h`.
+No bindgen for SAPI — the `windows` crate already exposes `ISpTTSEngine`, `ISpObjectWithToken`, `ISpTTSEngineSite`, `SPVTEXTFRAG`, `SPVSTATE`, `SPEVENT`, etc., under `Win32::Media::Speech`. Bindgen is used only for `nvdaController.h` inside SAPIence's own `build.rs`.
+
+Build-time dependencies (`[build-dependencies]`):
+
+- `bindgen` — generate `nvdaController.h` bindings.
+- `reqwest` (blocking, `rustls-tls`) — download the controller client zip.
+- `zip` — extract the zip into the build cache.
+- `sha2` — optional integrity check if NV Access publishes a hash.
+
+## Build script
+
+`build.rs` vendors the NVDA Controller Client at build time.
+
+```text
+const NVDA_CONTROLLER_VERSION: &str = "2024.4.1";  // bumped manually
+const RELEASE_URL_FMT: &str =
+    "https://download.nvaccess.org/releases/stable/nvda_{ver}_controllerClient.zip";
+
+fn main():
+    let arch = match CARGO_CFG_TARGET_ARCH:
+        "x86_64"  => "x64"
+        "aarch64" => "arm64"
+        "x86"     => "x86"
+        _ => fail
+
+    // 1. Resolve controller-client root:
+    let root = match env::SAPIENCE_NVDA_CONTROLLER_DIR:
+        Some(p) => PathBuf::from(p)        // dev/offline override
+        None    => download_and_extract(NVDA_CONTROLLER_VERSION,
+                                        cache_dir())
+
+    // 2. Per-arch dir contains nvdaController.h and nvdaControllerClient.lib
+    let arch_dir = root.join(arch).canonicalize()?
+
+    // 3. Tell cargo where to find the import library:
+    println!("cargo:rustc-link-search=native={}", arch_dir.display())
+    println!("cargo:rustc-link-lib=nvdaControllerClient")
+
+    // 4. Generate bindings into OUT_DIR/bindings.rs
+    bindgen::Builder::default()
+        .header(arch_dir.join("nvdaController.h").to_str()?)
+        .allowlist_function("nvdaController_.+")
+        .prepend_enum_name(false)
+        .must_use_type("error_status_t")
+        .generate()?
+        .write_to_file(OUT_DIR.join("bindings.rs"))?
+
+    println!("cargo:rerun-if-env-changed=SAPIENCE_NVDA_CONTROLLER_DIR")
+    println!("cargo:rerun-if-changed=build.rs")
+```
+
+Cache layout: `OUT_DIR/nvda-controller-client/<version>/` (per target, per profile — cheap because the zip is small). If the version dir already exists, skip download. The zip is only fetched on a clean build or version bump.
+
+`src/nvda.rs` includes the generated bindings and exposes safe wrappers (`test_if_running`, `cancel_speech`, `speak_ssml`, `get_process_id`, `set_on_ssml_mark_reached_callback`, plus `SpeechPriority` and `SymbolLevel` enums) — same surface as the existing example crate, but inlined.
+
+CI behaviour: builds need outbound HTTPS to `download.nvaccess.org`. Airgapped or restricted CI can set `SAPIENCE_NVDA_CONTROLLER_DIR` to a pre-fetched mirror.
 
 ## COM entry points
 
