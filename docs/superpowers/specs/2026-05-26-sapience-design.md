@@ -45,7 +45,7 @@ SAPIence/
 Dependencies:
 
 - `windows` 0.62 with features: `Win32_Foundation`, `Win32_Media_Speech`, `Win32_System_Com`, `Win32_System_Com_StructuredStorage`, `Win32_System_LibraryLoader`, `Win32_System_Threading`, `Win32_System_Ole`.
-- `windows-core` 0.62, `windows-registry` 0.6.
+- `windows-registry` 0.6.
 - `nvda` crate at `P:\A11y\nvda\extras\controllerClient\examples\example_rust` (path or vendored).
 - `parking_lot`, `tracing`, `tracing-subscriber`, `tracing-appender`.
 
