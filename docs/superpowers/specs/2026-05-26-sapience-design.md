@@ -48,7 +48,7 @@ Dependencies:
 
 - `windows` 0.62 with features: `Win32_Foundation`, `Win32_Media_Speech`, `Win32_System_Com`, `Win32_System_Com_StructuredStorage`, `Win32_System_LibraryLoader`, `Win32_System_Threading`, `Win32_System_Ole`.
 - `windows-registry` 0.6.
-- NVDA Controller Client: vendored via `build.rs`. Downloads `nvda_<NVDA_CONTROLLER_VERSION>_controllerClient.zip` from `https://download.nvaccess.org/releases/stable/`, caches under `OUT_DIR/nvda-controller-client/<version>/`, runs `bindgen` against `<arch>/nvdaController.h`, links `nvdaControllerClient.lib` from the matching arch dir. The version is a `const` in `build.rs`, bumped manually. Env var `SAPIENCE_NVDA_CONTROLLER_DIR` overrides with a local pre-extracted directory (offline/dev builds; e.g., `P:\A11y\nvda\extras\controllerClient`). The previous `nvda` example crate is no longer a dependency — bindings live in SAPIence's own `nvda::` module.
+- NVDA Controller Client: vendored via `build.rs`. Downloads `https://download.nvaccess.org/releases/<version>/nvda_<version>_controllerClient.zip` (both path segments use the same version), caches under `OUT_DIR/nvda-controller-client/<version>/`, runs `bindgen` against `<arch>/nvdaController.h`, links `nvdaControllerClient.lib` from the matching arch dir. The version is a `const` in `build.rs`, bumped manually. Env var `SAPIENCE_NVDA_CONTROLLER_DIR` overrides with a local pre-extracted directory (offline/dev builds; e.g., `P:\A11y\nvda\extras\controllerClient`). The previous `nvda` example crate is no longer a dependency — bindings live in SAPIence's own `nvda::` module.
 - `parking_lot`, `tracing`, `tracing-subscriber`, `tracing-appender`.
 
 No bindgen for SAPI — the `windows` crate already exposes `ISpTTSEngine`, `ISpObjectWithToken`, `ISpTTSEngineSite`, `SPVTEXTFRAG`, `SPVSTATE`, `SPEVENT`, etc., under `Win32::Media::Speech`. Bindgen is used only for `nvdaController.h` inside SAPIence's own `build.rs`.
@@ -67,7 +67,7 @@ Build-time dependencies (`[build-dependencies]`):
 ```text
 const NVDA_CONTROLLER_VERSION: &str = "2024.4.1";  // bumped manually
 const RELEASE_URL_FMT: &str =
-    "https://download.nvaccess.org/releases/stable/nvda_{ver}_controllerClient.zip";
+    "https://download.nvaccess.org/releases/{ver}/nvda_{ver}_controllerClient.zip";
 
 fn main():
     let arch = match CARGO_CFG_TARGET_ARCH:
