@@ -1,49 +1,192 @@
-//! Stub for the TTS engine — full implementation in a later task.
+//! ISpTTSEngine + ISpObjectWithToken implementation.
 
-use windows::Win32::Media::Speech::{ISpObjectWithToken, ISpTTSEngine};
-use windows::core::implement;
+use parking_lot::Mutex;
+use std::time::Duration;
+use tracing::{instrument, warn};
+use windows::{
+    Win32::{
+        Foundation::{E_FAIL, E_POINTER},
+        Media::Audio::WAVEFORMATEX,
+        Media::Speech::{
+            ISpObjectToken, ISpObjectWithToken, ISpObjectWithToken_Impl, ISpTTSEngine,
+            ISpTTSEngineSite, ISpTTSEngine_Impl, SpWaveFormatEx, SPVA_Bookmark,
+            SPVA_Silence, SPVA_Speak, SPVA_SpellOut, SPVTEXTFRAG,
+        },
+        System::Com::CoTaskMemAlloc,
+    },
+    core::{implement, Error, GUID, Ref, Result},
+};
+
+use crate::{
+    fragments::iter as iter_fragments,
+    marks,
+    nvda::{self, SpeechPriority, SymbolLevel},
+    pacing::{self, PaceOutcome, BYTES_PER_SAMPLE, SAMPLE_RATE_HZ},
+    ssml::{self, Prosody},
+};
 
 #[implement(ISpTTSEngine, ISpObjectWithToken)]
-pub struct TtsEngine;
+pub struct TtsEngine {
+    token: Mutex<Option<ISpObjectToken>>,
+}
 
 impl TtsEngine {
     pub fn new() -> Self {
-        TtsEngine
+        Self { token: Mutex::new(None) }
     }
 }
 
-impl windows::Win32::Media::Speech::ISpTTSEngine_Impl for TtsEngine_Impl {
+impl ISpObjectWithToken_Impl for TtsEngine_Impl {
+    fn SetObjectToken(&self, ptoken: Ref<ISpObjectToken>) -> Result<()> {
+        *self.token.lock() = ptoken.as_ref().cloned();
+        Ok(())
+    }
+
+    fn GetObjectToken(&self) -> Result<ISpObjectToken> {
+        self.token
+            .lock()
+            .clone()
+            .ok_or_else(|| Error::from(E_FAIL))
+    }
+}
+
+impl ISpTTSEngine_Impl for TtsEngine_Impl {
+    fn GetOutputFormat(
+        &self,
+        _ptargetfmtid: *const GUID,
+        _ptargetwaveformatex: *const WAVEFORMATEX,
+        pdesiredfmtid: *mut GUID,
+        ppcomemdesiredwaveformatex: *mut *mut WAVEFORMATEX,
+    ) -> Result<()> {
+        if pdesiredfmtid.is_null() || ppcomemdesiredwaveformatex.is_null() {
+            return Err(Error::from(E_POINTER));
+        }
+        let wfx = unsafe {
+            CoTaskMemAlloc(std::mem::size_of::<WAVEFORMATEX>()) as *mut WAVEFORMATEX
+        };
+        if wfx.is_null() {
+            return Err(Error::from(E_FAIL));
+        }
+        unsafe {
+            (*wfx) = WAVEFORMATEX {
+                wFormatTag: 1, // WAVE_FORMAT_PCM
+                nChannels: 1,
+                nSamplesPerSec: SAMPLE_RATE_HZ,
+                nAvgBytesPerSec: SAMPLE_RATE_HZ * BYTES_PER_SAMPLE,
+                nBlockAlign: BYTES_PER_SAMPLE as u16,
+                wBitsPerSample: 16,
+                cbSize: 0,
+            };
+            *pdesiredfmtid = SpWaveFormatEx;
+            *ppcomemdesiredwaveformatex = wfx;
+        }
+        Ok(())
+    }
+
+    #[instrument(skip_all)]
     fn Speak(
         &self,
         _dwspeakflags: u32,
-        _rguidformatid: *const windows::core::GUID,
-        _pwaveformatex: *const windows::Win32::Media::Audio::WAVEFORMATEX,
-        _ptextfraglist: *const windows::Win32::Media::Speech::SPVTEXTFRAG,
-        _poutputsite: windows::core::Ref<windows::Win32::Media::Speech::ISpTTSEngineSite>,
-    ) -> windows::core::Result<()> {
+        _rguidformatid: *const GUID,
+        _pwaveformatex: *const WAVEFORMATEX,
+        ptextfraglist: *const SPVTEXTFRAG,
+        poutputsite: Ref<ISpTTSEngineSite>,
+    ) -> Result<()> {
+        let site = poutputsite.ok()?.clone();
+
+        if nvda::test_if_running().is_err() {
+            warn!("NVDA not running; returning silent S_OK");
+            return Ok(());
+        }
+
+        let mut interest: u64 = 0;
+        let _ = unsafe { site.GetEventInterest(&mut interest) };
+        let mut audio_offset: u64 = 0;
+        let mut pending_bookmarks: Vec<String> = Vec::new();
+
+        for frag in iter_fragments(ptextfraglist) {
+            let state = frag.raw().State;
+            match state.eAction {
+                SPVA_Speak | SPVA_SpellOut => {
+                    let text = if state.eAction == SPVA_SpellOut {
+                        format!(
+                            r#"<say-as interpret-as="characters">{}</say-as>"#,
+                            ssml::xml_escape(&frag.text_string())
+                        )
+                    } else {
+                        frag.text_string()
+                    };
+
+                    let prosody = Prosody {
+                        rate_adj: state.RateAdj,
+                        volume: state.Volume,
+                        pitch_adj: state.PitchAdj.MiddleAdj,
+                    };
+                    let utt = ssml::next_utterance_id();
+                    let bookmarks_ref: Vec<&str> =
+                        pending_bookmarks.iter().map(String::as_str).collect();
+                    let (ssml_str, _word_count) = ssml::build_utterance_ssml(
+                        utt, &text, "en-US", prosody, &bookmarks_ref,
+                    );
+                    pending_bookmarks.clear();
+
+                    let ch = marks::register(utt);
+
+                    // Spawn worker thread for synchronous NVDA call.
+                    // asynchronous=false is required for mark callbacks to fire.
+                    let ssml_for_worker = ssml_str.clone();
+                    let worker = std::thread::spawn(move || {
+                        let _ = nvda::speak_ssml(
+                            &ssml_for_worker,
+                            SymbolLevel::Unchanged,
+                            SpeechPriority::Next,
+                            false, // synchronous — required for mark callbacks
+                        );
+                    });
+
+                    let cap = Duration::from_millis(200 * (text.chars().count() as u64 + 1));
+                    let outcome = pacing::pace_until_end(
+                        &site, ch, interest, &mut audio_offset, cap,
+                    );
+                    marks::unregister(utt);
+
+                    match outcome {
+                        PaceOutcome::Aborted => {
+                            let _ = nvda::cancel_speech();
+                            let _ = worker.join();
+                            return Ok(());
+                        }
+                        PaceOutcome::Skip { .. } => {
+                            let _ = nvda::cancel_speech();
+                            let _ = worker.join();
+                            let _ = unsafe { site.CompleteSkip(0) };
+                            // Continue to next fragment after skip.
+                        }
+                        _ => {
+                            let _ = worker.join();
+                        }
+                    }
+                }
+                SPVA_Silence => {
+                    let ms = state.SilenceMSecs as u64;
+                    let cap = Duration::from_millis(ms.max(10));
+                    // Pace silent PCM for the requested duration; no NVDA call.
+                    // Use a dummy channel that will never signal end_reached.
+                    let utt = ssml::next_utterance_id();
+                    let ch = marks::register(utt);
+                    let _ = pacing::pace_until_end(
+                        &site, ch, interest, &mut audio_offset, cap,
+                    );
+                    marks::unregister(utt);
+                }
+                SPVA_Bookmark => {
+                    pending_bookmarks.push(frag.text_string());
+                }
+                _ => {
+                    // SPVA_Section, SPVA_ParseUnknownTag, SPVA_Pronounce: ignore.
+                }
+            }
+        }
         Ok(())
-    }
-
-    fn GetOutputFormat(
-        &self,
-        _ptargetfmtid: *const windows::core::GUID,
-        _ptargetwaveformatex: *const windows::Win32::Media::Audio::WAVEFORMATEX,
-        _pdesiredfmtid: *mut windows::core::GUID,
-        _ppcomemdesiredwaveformatex: *mut *mut windows::Win32::Media::Audio::WAVEFORMATEX,
-    ) -> windows::core::Result<()> {
-        Err(windows::core::Error::from(windows::Win32::Foundation::E_NOTIMPL))
-    }
-}
-
-impl windows::Win32::Media::Speech::ISpObjectWithToken_Impl for TtsEngine_Impl {
-    fn SetObjectToken(
-        &self,
-        _ptoken: windows::core::Ref<windows::Win32::Media::Speech::ISpObjectToken>,
-    ) -> windows::core::Result<()> {
-        Ok(())
-    }
-
-    fn GetObjectToken(&self) -> windows::core::Result<windows::Win32::Media::Speech::ISpObjectToken> {
-        Err(windows::core::Error::from(windows::Win32::Foundation::E_FAIL))
     }
 }
