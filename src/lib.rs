@@ -5,6 +5,7 @@
 pub mod class_factory;
 pub mod clsid;
 pub mod fragments;
+pub mod marks;
 pub mod nvda;
 pub mod registry;
 pub mod ssml;
