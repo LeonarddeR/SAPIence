@@ -51,7 +51,7 @@ pub fn unregister(utt: u64) {
     REGISTRY.write().remove(&utt);
 }
 
-unsafe extern "C" fn on_mark(name: *const wchar_t) -> error_status_t {
+unsafe extern "system" fn on_mark(name: *const wchar_t) -> error_status_t {
     if name.is_null() {
         return 0;
     }

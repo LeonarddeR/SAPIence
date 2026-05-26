@@ -80,8 +80,13 @@ pub mod test_hooks {
     }
 }
 
-pub fn set_on_ssml_mark_reached_callback(callback: onSsmlMarkReachedFuncType) -> Result<()> {
-    to_result(unsafe { nvdaController_setOnSsmlMarkReachedCallback(callback) })
+pub fn set_on_ssml_mark_reached_callback(
+    callback: Option<unsafe extern "system" fn(*const wchar_t) -> error_status_t>,
+) -> Result<()> {
+    // SAFETY: extern "system" is stdcall on x86 and C on x64/arm64 — identical
+    // to what bindgen emits for onSsmlMarkReachedFuncType on each target.
+    let cb: onSsmlMarkReachedFuncType = unsafe { std::mem::transmute(callback) };
+    to_result(unsafe { nvdaController_setOnSsmlMarkReachedCallback(cb) })
 }
 
 pub fn speak_ssml(
