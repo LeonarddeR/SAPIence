@@ -2,4 +2,5 @@
 
 #![cfg(windows)]
 
+pub mod clsid;
 pub mod nvda;
