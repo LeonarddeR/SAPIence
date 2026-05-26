@@ -122,11 +122,11 @@ fn add_bookmark_event(site: &ISpTTSEngineSite, audio_offset: u64, name: &str) {
 }
 
 fn pack_bitfield(event_id: SPEVENTENUM, lparam_type: SPEVENTENUM) -> i32 {
-    ((event_id.0 as i32 & 0xFFFF) | ((lparam_type.0 as i32 & 0xFF) << 16)) as i32
+    (event_id.0 & 0xFFFF) | ((lparam_type.0 & 0xFF) << 16)
 }
 
 fn pack_bitfield_lp(event_id: SPEVENTENUM, lparam_type: SPEVENTLPARAMTYPE) -> i32 {
-    ((event_id.0 as i32 & 0xFFFF) | ((lparam_type.0 as i32 & 0xFF) << 16)) as i32
+    (event_id.0 & 0xFFFF) | ((lparam_type.0 & 0xFF) << 16)
 }
 
 #[cfg(test)]

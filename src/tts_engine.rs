@@ -36,6 +36,12 @@ impl TtsEngine {
     }
 }
 
+impl Default for TtsEngine {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ISpObjectWithToken_Impl for TtsEngine_Impl {
     fn SetObjectToken(&self, ptoken: Ref<ISpObjectToken>) -> Result<()> {
         *self.token.lock() = ptoken.as_ref().cloned();
@@ -51,6 +57,7 @@ impl ISpObjectWithToken_Impl for TtsEngine_Impl {
 }
 
 impl ISpTTSEngine_Impl for TtsEngine_Impl {
+    #[allow(clippy::not_unsafe_ptr_arg_deref)]
     fn GetOutputFormat(
         &self,
         _ptargetfmtid: *const GUID,
@@ -84,6 +91,7 @@ impl ISpTTSEngine_Impl for TtsEngine_Impl {
     }
 
     #[instrument(skip_all)]
+    #[allow(clippy::not_unsafe_ptr_arg_deref, non_upper_case_globals)]
     fn Speak(
         &self,
         _dwspeakflags: u32,
@@ -104,7 +112,7 @@ impl ISpTTSEngine_Impl for TtsEngine_Impl {
         let mut audio_offset: u64 = 0;
         let mut pending_bookmarks: Vec<String> = Vec::new();
 
-        for frag in iter_fragments(ptextfraglist) {
+        for frag in unsafe { iter_fragments(ptextfraglist) } {
             let state = frag.raw().State;
             match state.eAction {
                 SPVA_Speak | SPVA_SpellOut => {

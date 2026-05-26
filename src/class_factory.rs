@@ -18,6 +18,7 @@ use crate::{nvda, tts_engine::TtsEngine};
 pub struct ClassFactory;
 
 impl IClassFactory_Impl for ClassFactory_Impl {
+    #[allow(clippy::not_unsafe_ptr_arg_deref)]
     fn CreateInstance(
         &self,
         outer: Ref<'_, IUnknown>,

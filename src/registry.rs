@@ -27,7 +27,7 @@ pub fn register(parent: &Key, dll_path: &str) -> Result<()> {
         .write()
         .create()
         .transaction(&t)
-        .open(&clsid_key_path())?;
+        .open(clsid_key_path())?;
     clsid.set_string("", VOICE_DISPLAY_NAME)?;
     let inproc = clsid
         .options()
@@ -44,9 +44,9 @@ pub fn register(parent: &Key, dll_path: &str) -> Result<()> {
         .write()
         .create()
         .transaction(&t)
-        .open(&voice_token_path())?;
+        .open(voice_token_path())?;
     token.set_string("", VOICE_DISPLAY_NAME)?;
-    token.set_string("CLSID", &format!("{{{:?}}}", CLSID_SAPIENCE_VOICE))?;
+    token.set_string("CLSID", format!("{{{:?}}}", CLSID_SAPIENCE_VOICE))?;
     token.set_string("LangDataPath", "")?;
     token.set_string("VoiceDataPath", "")?;
     let attrs = token
@@ -74,6 +74,6 @@ pub fn unregister(parent: &Key) -> Result<()> {
     let _ = voices.remove_tree(VOICE_TOKEN_NAME);
 
     let cls = parent.options().write().read().open(COM_CLS_FOLDER)?;
-    let _ = cls.remove_tree(&format!("{{{:?}}}", CLSID_SAPIENCE_VOICE));
+    let _ = cls.remove_tree(format!("{{{:?}}}", CLSID_SAPIENCE_VOICE));
     Ok(())
 }

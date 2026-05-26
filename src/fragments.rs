@@ -27,12 +27,16 @@ impl<'a> Fragment<'a> {
 
 }
 
-pub fn from_raw<'a>(ptr: *const SPVTEXTFRAG) -> Option<Fragment<'a>> {
+/// # Safety
+/// `ptr` must be null or point to a valid `SPVTEXTFRAG` that outlives `'a`.
+pub unsafe fn from_raw<'a>(ptr: *const SPVTEXTFRAG) -> Option<Fragment<'a>> {
     unsafe { ptr.as_ref() }.map(|r| Fragment { raw: r })
 }
 
-pub fn iter<'a>(ptr: *const SPVTEXTFRAG) -> FragmentIter<'a> {
-    FragmentIter { cur: from_raw(ptr) }
+/// # Safety
+/// `ptr` must be null or point to a valid linked list of `SPVTEXTFRAG` that outlives `'a`.
+pub unsafe fn iter<'a>(ptr: *const SPVTEXTFRAG) -> FragmentIter<'a> {
+    FragmentIter { cur: unsafe { from_raw(ptr) } }
 }
 
 pub struct FragmentIter<'a> {

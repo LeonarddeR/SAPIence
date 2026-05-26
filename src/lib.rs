@@ -157,7 +157,7 @@ pub extern "system" fn DllRegisterServer() -> HRESULT {
         error!("DllRegisterServer: cannot resolve DLL path");
         return E_UNEXPECTED;
     };
-    match registry::register(&LOCAL_MACHINE, &path) {
+    match registry::register(LOCAL_MACHINE, &path) {
         Ok(()) => S_OK,
         Err(e) => {
             error!("DllRegisterServer failed: {e}");
@@ -169,7 +169,7 @@ pub extern "system" fn DllRegisterServer() -> HRESULT {
 #[unsafe(no_mangle)]
 #[instrument]
 pub extern "system" fn DllUnregisterServer() -> HRESULT {
-    match registry::unregister(&LOCAL_MACHINE) {
+    match registry::unregister(LOCAL_MACHINE) {
         Ok(()) => S_OK,
         Err(e) => {
             error!("DllUnregisterServer failed: {e}");

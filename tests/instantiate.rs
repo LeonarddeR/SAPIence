@@ -32,8 +32,7 @@ fn create_engine_via_class_factory() {
     // If NVDA isn't running, get_process_id() returns Err → class factory allows construction.
     // If NVDA IS running and PID matches ours (unlikely in test), CLASS_E_CLASSNOTAVAILABLE.
     // Either way: no panic, no UB.
-    if result.is_ok() {
-        let engine = result.unwrap();
+    if let Ok(engine) = result {
         drop(engine);
     }
     // result being Err(CLASS_E_CLASSNOTAVAILABLE) is also acceptable
