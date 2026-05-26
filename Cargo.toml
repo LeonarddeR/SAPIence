@@ -21,12 +21,14 @@ parking_lot = "0.12"
 tracing = "0.1"
 tracing-appender = { version = "0.2", features = ["parking_lot"] }
 tracing-subscriber = { version = "0.3", default-features = false, features = ["parking_lot", "tracing-log"] }
+windows-core = "0.62"
 windows-registry = "0.6"
 
 [dependencies.windows]
 version = "0.62"
 features = [
     "Win32_Foundation",
+    "Win32_Media_Audio",
     "Win32_Media_Speech",
     "Win32_System_Com",
     "Win32_System_Com_StructuredStorage",
@@ -37,7 +39,7 @@ features = [
 ]
 
 [build-dependencies]
-bindgen = { version = "0.69", features = ["runtime"] }
+bindgen = { version = "0.72", features = ["runtime"] }
 reqwest = { version = "0.12", default-features = false, features = ["blocking", "rustls-tls"] }
 zip = { version = "2", default-features = false, features = ["deflate"] }
 

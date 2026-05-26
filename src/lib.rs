@@ -2,6 +2,8 @@
 
 #![cfg(windows)]
 
+pub mod class_factory;
 pub mod clsid;
 pub mod nvda;
 pub mod registry;
+pub mod tts_engine;
