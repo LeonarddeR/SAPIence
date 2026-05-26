@@ -291,12 +291,10 @@ Silent PCM is written at the advertised format (22050 Hz, 16-bit mono = 44100 B/
 
 ```text
 loop:
-    if mark_state.end_reached or elapsed > safety_cap:
-        break
     write_zero_chunk(site)        # SAPI flow-controls naturally
-    audio_offset += 4410
+    audio_offset += chunk_bytes
     match site.GetActions():
-        SPVES_ABORT  → nvda::cancel_speech(); return Aborted
+        SPVES_ABORT  → nvda::cancel_speech(); join worker; return Aborted
         SPVES_SKIP   → handle_skip(site, frags); return SkipAdvanced
         SPVES_RATE/VOLUME → ignored (limitation: prosody-only)
     drain_new_marks(mark_state):  # see Marks
@@ -304,6 +302,11 @@ loop:
             AddEvents(SPEI_WORD_BOUNDARY at audio_offset)
         for bookmark in new bookmark marks:
             AddEvents(SPEI_TTS_BOOKMARK at audio_offset, lParam = name)
+    if mark_state.end_reached:
+        break
+    if elapsed > safety_cap:
+        warn; break
+# After loop: join worker thread
 ```
 
 Safety cap: `200 ms × character_count`. If exceeded, log a warning and return without further waiting (assume NVDA dropped the utterance). Without the cap, a crashed NVDA could hang Speak indefinitely.
@@ -337,11 +340,13 @@ extern "system" fn on_mark(name: *const wchar_t) {
 
 ### NVDA dispatch
 
-`nvda::speak_ssml(ssml, SymbolLevel::Unchanged, SpeechPriority::Next, asynchronous=true, Some(on_mark))`.
+`nvda::speak_ssml(ssml, SymbolLevel::Unchanged, SpeechPriority::Next, asynchronous=false)`.
 
-- `asynchronous=true` keeps the SAPI worker thread free for `Write`-driven pacing and action polling.
+- `asynchronous=false` is required for mark callbacks to fire. The call blocks until NVDA finishes speaking (or until cancelled).
+- Called on a dedicated worker thread per utterance so the SAPI thread remains free for `Write`-driven pacing and action polling.
 - `priority=Next` queues without interrupting NVDA's current utterance.
 - The mark callback is registered lazily on first `Speak` (process-global slot), not per call.
+- On abort: `nvda::cancel_speech()` is called from the SAPI thread; the worker thread is joined after cancel (the sync `speak_ssml` returns once NVDA cancels).
 
 ### SAPI actions
 
@@ -364,7 +369,7 @@ extern "system" fn on_mark(name: *const wchar_t) {
 
 ## Threading
 
-`ThreadingModel = "Both"` in registry. `Speak` runs on SAPI's worker thread; no additional threads are spawned. NVDA's mark callback may fire on an arbitrary NVDA-controller thread — `MARK_REGISTRY` uses `parking_lot::RwLock` for the registry, `Mutex`+`Condvar` per channel.
+`ThreadingModel = "Both"` in registry. `Speak` runs on SAPI's worker thread. For each `SPVA_Speak` fragment, a dedicated worker thread is spawned to call `nvda::speak_ssml` synchronously (`asynchronous=false`). Synchronous mode is required for mark callbacks to fire during the call. The SAPI thread simultaneously writes silent PCM, polls `GetActions`, and drains mark callbacks. The worker thread is joined after pacing completes or after abort+cancel. NVDA's mark callback may fire on an arbitrary NVDA-controller thread — `MARK_REGISTRY` uses `parking_lot::RwLock` for the registry, `Mutex`+`Condvar` per channel.
 
 ## Build targets
 
