@@ -7,6 +7,7 @@ pub mod clsid;
 pub mod fragments;
 pub mod nvda;
 pub mod registry;
+pub mod ssml;
 pub mod tts_engine;
 
 use core::ffi::c_void;
