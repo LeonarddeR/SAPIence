@@ -20,7 +20,7 @@ opt-level = "s"
 parking_lot = "0.12"
 tracing = "0.1"
 tracing-appender = { version = "0.2", features = ["parking_lot"] }
-tracing-subscriber = { version = "0.3", default-features = false, features = ["parking_lot", "tracing-log"] }
+tracing-subscriber = { version = "0.3", default-features = false, features = ["parking_lot", "tracing-log", "fmt", "ansi"] }
 windows-core = "0.62"
 windows-registry = "0.6"
 
