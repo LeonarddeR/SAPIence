@@ -4,7 +4,17 @@ ci:
   autofix_commit_msg: "Pre-commit auto-fix"
   skip: [fmt, clippy]  # Not supported by ci
 
+default_language_version:
+  python: python3.13
+
 repos:
+  - repo: meta
+    hooks:
+      # ensures that exclude directives apply to any file in the repository.
+      - id: check-useless-excludes
+      # ensures that the configured hooks apply to at least one file in the repository.
+      - id: check-hooks-apply
+
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v6.0.0
     hooks:
@@ -14,10 +24,38 @@ repos:
       - id: check-yaml
       - id: end-of-file-fixer
       - id: trailing-whitespace
+      # Checks python syntax
+      - id: check-ast
+      # Checks Python files for debug statements, such as python's breakpoint function, or those inserted by some IDEs.
+      - id: debug-statements
+      # Removes the UTF-8 BOM from files that have it.
+      - id: fix-byte-order-marker
+      # Avoids using reserved Windows filenames.
+      - id: check-illegal-windows-names
+
+  - repo: https://github.com/asottile/add-trailing-comma
+    rev: v3.2.0
+    hooks:
+      # Ruff preserves indent/new-line formatting of function arguments, list items, and similar iterables,
+      # if a trailing comma is added.
+      # This adds a trailing comma to args/iterable items in case it was missed.
+      - id: add-trailing-comma
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    # Matches Ruff version in pyproject.
+    rev: v0.12.7
+    hooks:
+      - id: ruff
+        name: lint with ruff
+        args: [ --fix ]
+      - id: ruff-format
+        name: format with ruff
+
   - repo: https://github.com/rhysd/actionlint
     rev: v1.7.7
     hooks:
       - id: actionlint
+
   - repo: https://github.com/doublify/pre-commit-rust
     rev: v1.0
     hooks:
