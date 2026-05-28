@@ -22,14 +22,21 @@ def _verifyBundledFiles() -> None:
 			raise FileNotFoundError(path)
 
 
-def _askConsent() -> None:
+def _askConsent(unregister: bool = False) -> None:
 	# Translators: Title of the dialog asking for consent to elevate during add-on install/uninstall.
 	title = _("{addonName}: administrator privileges required").format(addonName=_addon.name)
-	# Translators: Body of the consent dialog explaining why elevation is needed.
-	body = _(
-		"{addonName} must register itself as a SAPI synthesizer in the system-wide registry. "
-		"This requires administrator privileges. Do you want to continue?",
-	).format(addonName=_addon.name)
+	if unregister:
+		# Translators: Body of the consent dialog explaining why elevation is needed during uninstall.
+		body = _(
+			"{addonName} must unregister its SAPI synthesizer from the system-wide registry. "
+			"This requires administrator privileges. Do you want to continue?",
+		).format(addonName=_addon.name)
+	else:
+		# Translators: Body of the consent dialog explaining why elevation is needed during install.
+		body = _(
+			"{addonName} must register itself as a SAPI synthesizer in the system-wide registry. "
+			"This requires administrator privileges. Do you want to continue?",
+		).format(addonName=_addon.name)
 	dlg = (
 		MessageDialog(
 			parent=None,
@@ -46,8 +53,8 @@ def _askConsent() -> None:
 
 
 def _runHelper(unregister: bool) -> None:
-	# execElevated uses ShellExecuteEx/runas — invoke via cmd.exe so the .bat
-	# file association is resolved correctly regardless of NVDA's shell context.
+	# Use cmd.exe /c rather than executing the .bat directly: .bat file association
+	# is not guaranteed (could be reassigned to an editor), so we must invoke cmd.exe explicitly.
 	args = ["/c", _HELPER_BAT, _DLL_X64, _DLL_X86]
 	if unregister:
 		args.append("/u")
@@ -58,11 +65,11 @@ def _runHelper(unregister: bool) -> None:
 
 def onInstall() -> None:
 	_verifyBundledFiles()
-	_askConsent()
+	_askConsent(unregister=False)
 	_runHelper(unregister=False)
 
 
 def onUninstall() -> None:
 	_verifyBundledFiles()
-	_askConsent()
+	_askConsent(unregister=True)
 	_runHelper(unregister=True)
