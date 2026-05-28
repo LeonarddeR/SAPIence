@@ -22,3 +22,6 @@ manifest.ini
 .sconsign.dblite
 /[0-9]*.[0-9]*.[0-9]*.json
 *.egg-info
+
+# Bundled DLLs are CI artifacts; copy in by hand for local builds.
+/addon/dll/
