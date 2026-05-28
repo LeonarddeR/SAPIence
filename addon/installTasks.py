@@ -5,7 +5,7 @@ import os
 
 import addonHandler
 import systemUtils
-from gui.message import DialogType, MessageDialog, ReturnCode
+from gui.message import MessageDialog, ReturnCode
 
 
 _addon = addonHandler.getCodeAddon()
@@ -38,18 +38,8 @@ def _askConsent(unregister: bool = False) -> None:
 			"{addonName} must register itself as a SAPI synthesizer in the system-wide registry. "
 			"This requires administrator privileges. Do you want to continue?",
 		).format(addonName=_ADDON_DISPLAY_NAME)
-	dlg = (
-		MessageDialog(
-			parent=None,
-			message=body,
-			title=title,
-			dialogType=DialogType.WARNING,
-			buttons=None,
-		)
-		.addYesButton()
-		.addNoButton(defaultFocus=True)
-	)
-	if dlg.ShowModal() != ReturnCode.YES:
+	# MessageDialog.confirm is thread-safe (marshals to main thread via wxCallOnMain internally).
+	if MessageDialog.confirm(message=body, caption=title) != ReturnCode.OK:
 		raise RuntimeError("User declined elevation.")
 
 
