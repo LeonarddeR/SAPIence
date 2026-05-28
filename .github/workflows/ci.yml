@@ -108,6 +108,9 @@ jobs:
         with:
           key: ${{ matrix.suffix }}
 
+      - name: Build DLL
+        run: cargo build --features test-hooks --target ${{ matrix.target }}
+
       - name: Install cargo-nextest
         uses: taiki-e/install-action@v2
         with:
