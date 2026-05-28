@@ -49,6 +49,23 @@ addonDir: Final = Path("addon/")
 localeDir: Final = addonDir / "locale"
 docsDir: Final = addonDir / "doc"
 
+# Verify bundled DLLs exist before packaging.
+# DLLs are not source-controlled; CI lays them out from per-arch build artifacts.
+_REQUIRED_DLLS: Final = [
+	addonDir / "dll" / "x64" / "sapience.dll",
+	addonDir / "dll" / "x64" / "nvdaControllerClient.dll",
+	addonDir / "dll" / "x86" / "sapience.dll",
+	addonDir / "dll" / "x86" / "nvdaControllerClient.dll",
+]
+_missingDlls = [str(p) for p in _REQUIRED_DLLS if not p.is_file()]
+if _missingDlls:
+	raise ValueError(
+		"Cannot package add-on: required DLL files are missing:\n  "
+		+ "\n  ".join(_missingDlls)
+		+ "\nCI populates addon/dll/<arch>/ from sapience-x64 / sapience-x86 artifacts; "
+		  "for local builds, copy them in by hand."
+	)
+
 
 vars = Variables()
 vars.Add("version", "The version of this build", buildVars.addon_info["addon_version"])
