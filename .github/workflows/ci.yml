@@ -174,8 +174,11 @@ jobs:
           sed -i "s/addon_version=\"[^\"]*\"/addon_version=\"${VERSION}\"/" buildVars.py
           grep -F "addon_version=\"${VERSION}\"" buildVars.py
 
-      - name: Code checks
-        run: SKIP=no-commit-to-branch uv run pre-commit run --all-files
+      - name: Lint
+        run: uv run ruff check --fix
+
+      - name: Format
+        run: uv run ruff format --check
 
       - name: Build add-on
         run: uv run scons && uv run scons pot
