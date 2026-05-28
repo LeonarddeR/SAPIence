@@ -124,20 +124,88 @@ jobs:
           SAPIENCE_DLL_PATH: ${{ github.workspace }}/dll/sapience.dll
         run: cargo test --features test-hooks --target ${{ matrix.target }}
 
+  build_addon:
+    name: Build add-on
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y gettext
+
+      - name: Install Python dependencies
+        run: uv sync
+
+      - name: Download x64 DLLs
+        uses: actions/download-artifact@v8
+        with:
+          name: sapience-x64
+          path: addon/dll/x64
+
+      - name: Download x86 DLLs
+        uses: actions/download-artifact@v8
+        with:
+          name: sapience-x86
+          path: addon/dll/x86
+
+      - name: Strip non-DLL files from artifact payload
+        run: |
+          set -euo pipefail
+          for arch in x64 x86; do
+            find "addon/dll/${arch}" -mindepth 1 -maxdepth 1 \
+              ! -name 'sapience.dll' ! -name 'nvdaControllerClient.dll' \
+              -delete
+          done
+          ls -lR addon/dll
+
+      - name: Set addon version from tag
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          sed -i "s/addon_version=\"[^\"]*\"/addon_version=\"${VERSION}\"/" buildVars.py
+
+      - name: Code checks
+        run: SKIP=no-commit-to-branch uv run pre-commit run --all-files
+
+      - name: Build add-on
+        run: uv run scons && uv run scons pot
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: packaged_addon
+          path: ./*.nvda-addon
+          compression-level: 9
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: translation_template
+          path: ./*.pot
+          compression-level: 9
+
   release:
     name: Release
-    needs: [build, test]
+    needs: [build, test, build_addon]
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@v6
+
       - name: Download all artifacts
         uses: actions/download-artifact@v8
         with:
           path: artifacts
 
-      - name: Assemble release zip
+      - name: Assemble Rust release zip
         run: |
           set -euo pipefail
           mkdir -p release
@@ -146,13 +214,29 @@ jobs:
             [ -d "$src" ] || { echo "Missing artifact: $src" >&2; exit 1; }
             mv "$src" "release/${suffix}"
           done
-          cd release
-          zip -r -9 "../sapience-${GITHUB_REF_NAME}.zip" .
+          (cd release && zip -r -9 "../sapience-${GITHUB_REF_NAME}.zip" .)
+
+      - name: Stage addon + pot artifacts
+        run: |
+          set -euo pipefail
+          mv artifacts/packaged_addon/*.nvda-addon .
+          mv artifacts/translation_template/*.pot .
+
+      - name: Append SHA256 of .nvda-addon to changelog
+        run: |
+          set -euo pipefail
+          printf '\nSHA256:\n' >> changelog.md
+          sha256sum *.nvda-addon >> changelog.md
 
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v3
         with:
-          files: sapience-*.zip
+          files: |
+            sapience-*.zip
+            *.nvda-addon
+            *.pot
+          body_path: changelog.md
           generate_release_notes: true
           fail_on_unmatched_files: true
           name: ${{ github.ref_name }}
+          prerelease: ${{ contains(github.ref, '-') }}
