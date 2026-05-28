@@ -169,8 +169,10 @@ jobs:
       - name: Set addon version from tag
         if: startsWith(github.ref, 'refs/tags/v')
         run: |
+          set -euo pipefail
           VERSION="${GITHUB_REF_NAME#v}"
           sed -i "s/addon_version=\"[^\"]*\"/addon_version=\"${VERSION}\"/" buildVars.py
+          grep -F "addon_version=\"${VERSION}\"" buildVars.py
 
       - name: Code checks
         run: SKIP=no-commit-to-branch uv run pre-commit run --all-files
