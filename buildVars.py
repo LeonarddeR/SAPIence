@@ -14,11 +14,9 @@ from site_scons.site_tools.NVDATool.utils import _
 # Add-on information variables
 addon_info = AddonInfo(
 	# add-on Name/identifier, internal for NVDA
-	addon_name="sapience",
+	addon_name="SAPIence",
 	# Add-on summary/title, usually the user visible name of the add-on
-	# Translators: Summary/title for this add-on
-	# to be shown on installation and add-on information found in add-on store
-	addon_summary=_("SAPIence"),
+	addon_summary="SAPIence",
 	# Add-on description
 	# Translators: Long description to be shown for this add-on on add-on information from add-on store
 	addon_description=_("A SAPI 5 TTS engine that forwards speech to NVDA"),
@@ -36,9 +34,9 @@ addon_info = AddonInfo(
 	# Documentation file name
 	addon_docFileName="readme.html",
 	# Minimum NVDA version supported (e.g. "2019.3.0", minor version is optional)
-	addon_minimumNVDAVersion=None,
+	addon_minimumNVDAVersion="2026.1",
 	# Last NVDA version supported/tested (e.g. "2024.4.0", ideally more recent than minimum version)
-	addon_lastTestedNVDAVersion=None,
+	addon_lastTestedNVDAVersion="2026.1",
 	# Add-on update channel (default is None, denoting stable releases,
 	# and for development releases, use "dev".)
 	# Do not change unless you know what you are doing!
