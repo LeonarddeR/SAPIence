@@ -1,7 +1,5 @@
 # SAPIence add-on complete design
 
-Supersedes `2026-05-27-sapience-addon-dll-bundling-design.md`.
-
 ## Goals
 
 - Ship the Rust SAPIence runtime inside the NVDA add-on produced from this monorepo.
