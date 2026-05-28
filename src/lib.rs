@@ -19,7 +19,7 @@ use std::sync::atomic::{AtomicIsize, AtomicU32, Ordering};
 use tracing::{debug, error, instrument, trace, warn};
 use windows::{
     Win32::{
-        Foundation::{CLASS_E_CLASSNOTAVAILABLE, E_UNEXPECTED, HMODULE, S_FALSE, S_OK},
+        Foundation::{CLASS_E_CLASSNOTAVAILABLE, E_POINTER, E_UNEXPECTED, HMODULE, S_FALSE, S_OK},
         System::{
             Com::IClassFactory,
             LibraryLoader::{
@@ -29,7 +29,7 @@ use windows::{
             SystemServices::{DLL_PROCESS_ATTACH, DLL_PROCESS_DETACH},
         },
     },
-    core::{BOOL, GUID, HRESULT, HSTRING, Interface, OutRef, PCWSTR, Ref},
+    core::{BOOL, GUID, HRESULT, HSTRING, Interface, PCWSTR},
 };
 use windows_registry::{CURRENT_USER, LOCAL_MACHINE};
 
@@ -102,31 +102,32 @@ pub extern "system" fn DllMain(hinst: HMODULE, reason: u32, _reserved: *mut c_vo
     true.into()
 }
 
+/// # Safety
+/// Called by COM with valid non-null pointers per the COM contract.
 #[unsafe(no_mangle)]
 #[instrument(skip_all)]
-pub extern "system" fn DllGetClassObject(
-    rclsid: Ref<GUID>,
-    riid: Ref<GUID>,
-    ppv: OutRef<IClassFactory>,
+pub unsafe extern "system" fn DllGetClassObject(
+    rclsid: *const GUID,
+    riid: *const GUID,
+    ppv: *mut *mut c_void,
 ) -> HRESULT {
-    let clsid = match rclsid.ok() {
-        Ok(c) => *c,
-        Err(e) => return e.into(),
-    };
-    let iid = match riid.ok() {
-        Ok(i) => *i,
-        Err(e) => return e.into(),
-    };
+    if !ppv.is_null() {
+        unsafe { *ppv = core::ptr::null_mut() };
+    }
+    if rclsid.is_null() || riid.is_null() || ppv.is_null() {
+        return E_POINTER;
+    }
+    let clsid = unsafe { *rclsid };
+    let iid = unsafe { *riid };
     if clsid != CLSID_SAPIENCE_VOICE {
-        let _ = ppv.write(None);
         return CLASS_E_CLASSNOTAVAILABLE;
     }
     if iid != IClassFactory::IID {
-        let _ = ppv.write(None);
         return E_UNEXPECTED;
     }
     let factory: IClassFactory = ClassFactory.into();
-    ppv.write(Some(factory)).into()
+    unsafe { *ppv = factory.into_raw() };
+    S_OK
 }
 
 #[unsafe(no_mangle)]
