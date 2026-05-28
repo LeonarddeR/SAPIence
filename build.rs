@@ -125,7 +125,7 @@ fn ensure_downloaded(version: &str, arch: &str) -> Result<PathBuf, Box<dyn std::
     fs::create_dir_all(&dest)?;
     let url = URL_FMT.replace("{ver}", version);
     println!("cargo:warning=Downloading {url}");
-    let bytes = reqwest::blocking::get(&url)?.error_for_status()?.bytes()?;
+    let bytes = ureq::get(&url).call()?.body_mut().read_to_vec()?;
     let mut zip = zip::ZipArchive::new(Cursor::new(bytes))?;
     for i in 0..zip.len() {
         let mut entry = zip.by_index(i)?;
