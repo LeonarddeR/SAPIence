@@ -14,27 +14,25 @@ from site_scons.site_tools.NVDATool.utils import _
 # Add-on information variables
 addon_info = AddonInfo(
 	# add-on Name/identifier, internal for NVDA
-	addon_name="addonTemplate",
+	addon_name="sapience",
 	# Add-on summary/title, usually the user visible name of the add-on
 	# Translators: Summary/title for this add-on
 	# to be shown on installation and add-on information found in add-on store
-	addon_summary=_("Add-on user visible name"),
+	addon_summary=_("SAPIence"),
 	# Add-on description
 	# Translators: Long description to be shown for this add-on on add-on information from add-on store
-	addon_description=_("""Description for the add-on.
-It can span multiple lines."""),
+	addon_description=_("A SAPI 5 TTS engine that forwards speech to NVDA"),
 	# version
-	addon_version="x.y",
+	addon_version="0.1.0",
 	# Brief changelog for this version
 	# Translators: what's new content for the add-on version to be shown in the add-on store
-	addon_changelog=_("""Changelog for the add-on version.
-It can span multiple lines."""),
+	addon_changelog=_(""),
 	# Author(s)
-	addon_author="name <name@domain.com>",
+	addon_author="Leonard de Ruijter <alderuijter@gmail.com>",
 	# URL for the add-on documentation support
 	addon_url=None,
 	# URL for the add-on repository where the source code can be found
-	addon_sourceURL=None,
+	addon_sourceURL="https://github.com/leonardder/sAPIence",
 	# Documentation file name
 	addon_docFileName="readme.html",
 	# Minimum NVDA version supported (e.g. "2019.3.0", minor version is optional)
@@ -46,7 +44,7 @@ It can span multiple lines."""),
 	# Do not change unless you know what you are doing!
 	addon_updateChannel=None,
 	# Add-on license such as GPL 2
-	addon_license=None,
+	addon_license="LGPL-2.1-or-later",
 	# URL for the license document the ad-on is licensed under
 	addon_licenseURL=None,
 )
@@ -59,7 +57,10 @@ It can span multiple lines."""),
 # pythonSources = ["addon/globalPlugins/*.py"]
 # For more information on SCons Glob expressions please take a look at:
 # https://scons.org/doc/production/HTML/scons-user/apd.html
-pythonSources: list[str] = []
+pythonSources: list[str] = [
+	"addon/installTasks.py",
+	"addon/synthDrivers/*.py",
+]
 
 # Files that contain strings for translation. Usually your python sources
 i18nSources: list[str] = pythonSources + ["buildVars.py"]
