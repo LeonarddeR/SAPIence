@@ -16,9 +16,6 @@ use windows::{
 pub const CLSID_SAPIENCE_VOICE: GUID = GUID::from_u128(0x5A91_E9CE_2BC7_4F8E_9DA1_4D7C_9F2E_7E11);
 
 pub fn dll_path() -> PathBuf {
-    if let Some(p) = std::env::var_os("SAPIENCE_DLL_PATH") {
-        return PathBuf::from(p);
-    }
     let target_dir = std::env::var_os("CARGO_TARGET_DIR")
         .map(PathBuf::from)
         .unwrap_or_else(|| PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("target"));

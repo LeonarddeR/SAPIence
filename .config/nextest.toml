@@ -1,0 +1,9 @@
+[profile.ci]
+fail-fast = false
+slow-timeout = { period = "30s", terminate-after = 2 }
+
+[profile.ci.junit]
+path = "junit.xml"
+report-name = "sapience"
+store-success-output = false
+store-failure-output = true
