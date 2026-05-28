@@ -10,6 +10,7 @@ from gui.message import DialogType, MessageDialog, ReturnCode
 
 _addon = addonHandler.getCodeAddon()
 _ADDON_PATH = _addon.path
+_ADDON_DISPLAY_NAME = _addon.manifest["summary"]
 _CMD = os.path.join(os.environ["SystemRoot"], "System32", "cmd.exe")
 _HELPER_BAT = os.path.join(_ADDON_PATH, "regsvrHelper.bat")
 _DLL_X64 = os.path.join(_ADDON_PATH, "dll", "x64", "sapience.dll")
@@ -24,19 +25,19 @@ def _verifyBundledFiles() -> None:
 
 def _askConsent(unregister: bool = False) -> None:
 	# Translators: Title of the dialog asking for consent to elevate during add-on install/uninstall.
-	title = _("{addonName}: administrator privileges required").format(addonName=_addon.name)
+	title = _("{addonName}: administrator privileges required").format(addonName=_ADDON_DISPLAY_NAME)
 	if unregister:
 		# Translators: Body of the consent dialog explaining why elevation is needed during uninstall.
 		body = _(
 			"{addonName} must unregister its SAPI synthesizer from the system-wide registry. "
 			"This requires administrator privileges. Do you want to continue?",
-		).format(addonName=_addon.name)
+		).format(addonName=_ADDON_DISPLAY_NAME)
 	else:
 		# Translators: Body of the consent dialog explaining why elevation is needed during install.
 		body = _(
 			"{addonName} must register itself as a SAPI synthesizer in the system-wide registry. "
 			"This requires administrator privileges. Do you want to continue?",
-		).format(addonName=_addon.name)
+		).format(addonName=_ADDON_DISPLAY_NAME)
 	dlg = (
 		MessageDialog(
 			parent=None,
