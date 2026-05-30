@@ -114,6 +114,12 @@ impl ISpTTSEngine_Impl for TtsEngine_Impl {
 
         let mut interest: u64 = 0;
         let _ = unsafe { site.GetEventInterest(&mut interest) };
+        // Decide once per Speak (invariant: never mix paths within a call).
+        // Timed-event interest → silent-PCM pacing, whose audio stream is the
+        // only timeline SAPI has for firing word/bookmark events. No timed
+        // interest (the default-interest=0 common case) → no-Write poll loop:
+        // the synchronous NVDA worker alone gates duration, no PCM is produced.
+        let use_pcm = pacing::wants_timed_events(interest);
         let mut audio_offset: u64 = 0;
         let mut pending_bookmarks: Vec<String> = Vec::new();
 
@@ -190,14 +196,18 @@ impl ISpTTSEngine_Impl for TtsEngine_Impl {
                     });
 
                     let cap = Duration::from_millis(200 * (text.chars().count() as u64 + 1));
-                    let outcome = pacing::pace_until_end(
-                        &site,
-                        ch,
-                        interest,
-                        &mut audio_offset,
-                        cap,
-                        &speech_ended,
-                    );
+                    let outcome = if use_pcm {
+                        pacing::pace_until_end(
+                            &site,
+                            ch,
+                            interest,
+                            &mut audio_offset,
+                            cap,
+                            &speech_ended,
+                        )
+                    } else {
+                        pacing::poll_until_end(&site, ch, cap, &speech_ended)
+                    };
                     marks::unregister(utt);
 
                     match outcome {
@@ -229,14 +239,20 @@ impl ISpTTSEngine_Impl for TtsEngine_Impl {
                     let utt = ssml::next_utterance_id();
                     let ch = marks::register(utt);
                     let never_ended = AtomicBool::new(false);
-                    let _ = pacing::pace_until_end(
-                        &site,
-                        ch,
-                        interest,
-                        &mut audio_offset,
-                        cap,
-                        &never_ended,
-                    );
+                    if use_pcm {
+                        let _ = pacing::pace_until_end(
+                            &site,
+                            ch,
+                            interest,
+                            &mut audio_offset,
+                            cap,
+                            &never_ended,
+                        );
+                    } else {
+                        // No audio stream: the cap=ms wall-clock wait renders the
+                        // silence as a gap between NVDA utterances.
+                        let _ = pacing::poll_until_end(&site, ch, cap, &never_ended);
+                    }
                     marks::unregister(utt);
                 }
                 SPVA_Bookmark => {
