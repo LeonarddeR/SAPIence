@@ -34,7 +34,7 @@ repos:
       - id: check-illegal-windows-names
 
   - repo: https://github.com/asottile/add-trailing-comma
-    rev: v3.2.0
+    rev: v4.0.0
     hooks:
       # Ruff preserves indent/new-line formatting of function arguments, list items, and similar iterables,
       # if a trailing comma is added.
@@ -43,7 +43,7 @@ repos:
 
   - repo: https://github.com/astral-sh/ruff-pre-commit
     # Matches Ruff version in pyproject.
-    rev: v0.12.7
+    rev: v0.15.15
     hooks:
       - id: ruff
         name: lint with ruff
@@ -52,7 +52,7 @@ repos:
         name: format with ruff
 
   - repo: https://github.com/rhysd/actionlint
-    rev: v1.7.7
+    rev: v1.7.12
     hooks:
       - id: actionlint
 
