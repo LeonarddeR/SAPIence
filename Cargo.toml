@@ -45,7 +45,7 @@ features = [
 [build-dependencies]
 bindgen = { version = "0.72", features = ["runtime"] }
 ureq = "3"
-zip = { version = "2", default-features = false, features = ["deflate"] }
+zip = { version = "9", default-features = false, features = ["deflate"] }
 
 [dev-dependencies]
 libloading = "0.9"
